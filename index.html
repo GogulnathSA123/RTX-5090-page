@@ -35,7 +35,7 @@
       </header>
 
       <main class="main-grid">
-        <section class="auth-panel" aria-labelledby="authTitle">
+        <section class="auth-panel" id="authPanel" aria-labelledby="authTitle">
           <div class="section-heading auth-heading">
             <div>
               <p class="eyebrow">Account access</p>
@@ -90,7 +90,25 @@
             </div>
 
             <div class="account-summary">
+              <div>
+                <p class="eyebrow" id="accountSummaryEyebrow">Account status</p>
+                <h3 id="accountSummaryTitle">Signed out</h3>
+              </div>
               <p id="accountStatus" class="helper-text">Sign in before booking.</p>
+              <dl class="account-details is-hidden" id="accountDetails">
+                <div>
+                  <dt>Name</dt>
+                  <dd id="accountName">--</dd>
+                </div>
+                <div>
+                  <dt>Mail</dt>
+                  <dd id="accountEmail">--</dd>
+                </div>
+                <div>
+                  <dt>Booked slots</dt>
+                  <dd id="accountSlots">0 upcoming</dd>
+                </div>
+              </dl>
               <button class="ghost-button" id="signOutButton" type="button">Sign out</button>
             </div>
           </div>

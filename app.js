@@ -34,6 +34,8 @@ const state = {
 };
 
 const els = {
+  authPanel: document.querySelector("#authPanel"),
+  authTitle: document.querySelector("#authTitle"),
   syncMode: document.querySelector("#syncMode"),
   syncDetail: document.querySelector("#syncDetail"),
   syncNowButton: document.querySelector("#syncNowButton"),
@@ -59,7 +61,13 @@ const els = {
   signUpPassword: document.querySelector("#signUpPassword"),
   signUpConfirm: document.querySelector("#signUpConfirm"),
   rememberSession: document.querySelector("#rememberSession"),
+  accountSummaryEyebrow: document.querySelector("#accountSummaryEyebrow"),
+  accountSummaryTitle: document.querySelector("#accountSummaryTitle"),
   accountStatus: document.querySelector("#accountStatus"),
+  accountDetails: document.querySelector("#accountDetails"),
+  accountName: document.querySelector("#accountName"),
+  accountEmail: document.querySelector("#accountEmail"),
+  accountSlots: document.querySelector("#accountSlots"),
   authState: document.querySelector("#authState"),
   signOutButton: document.querySelector("#signOutButton"),
   bookingDate: document.querySelector("#bookingDate"),
@@ -476,16 +484,38 @@ function render() {
 
 function renderAccount() {
   if (state.currentUser) {
+    const ownedBookings = activeBookings().filter((booking) => booking.memberId === state.currentUser.id);
+    const upcomingOwned = ownedBookings.filter((booking) => bookingEndsAfterNow(booking));
+    const nextOwned = upcomingOwned.sort(compareBookings)[0];
+
+    els.authPanel.classList.add("is-signed-in");
+    els.authTitle.textContent = "Account details";
     els.signInEmail.value = state.currentUser.email;
     els.signUpEmail.value = state.currentUser.email;
     els.signUpName.value = state.currentUser.name;
-    els.accountStatus.textContent = `Signed in as ${state.currentUser.name} (${state.currentUser.email}).`;
+    els.accountSummaryEyebrow.textContent = "Account details";
+    els.accountSummaryTitle.textContent = state.currentUser.name;
+    els.accountStatus.textContent = nextOwned
+      ? `Next booking ${formatBookingStart(nextOwned)}.`
+      : "No upcoming bookings for this account.";
+    els.accountDetails.classList.remove("is-hidden");
+    els.accountName.textContent = state.currentUser.name;
+    els.accountEmail.textContent = state.currentUser.email;
+    els.accountSlots.textContent = formatSlotCount(upcomingOwned.length);
     els.authState.textContent = "Signed in";
     els.signOutButton.disabled = false;
     return;
   }
 
+  els.authPanel.classList.remove("is-signed-in");
+  els.authTitle.textContent = "Sign in or create an account";
+  els.accountSummaryEyebrow.textContent = "Account status";
+  els.accountSummaryTitle.textContent = "Signed out";
   els.accountStatus.textContent = "Sign in before booking.";
+  els.accountDetails.classList.add("is-hidden");
+  els.accountName.textContent = "--";
+  els.accountEmail.textContent = "--";
+  els.accountSlots.textContent = "0 upcoming";
   els.authState.textContent = "Signed out";
   els.signOutButton.disabled = true;
 }
@@ -905,6 +935,10 @@ function formatDate(date) {
 function formatBookingStart(booking) {
   const date = booking.date === todayISO() ? "Today" : formatDate(booking.date);
   return `${date} ${booking.start}`;
+}
+
+function formatSlotCount(count) {
+  return `${count} upcoming slot${count === 1 ? "" : "s"}`;
 }
 
 function todayISO() {

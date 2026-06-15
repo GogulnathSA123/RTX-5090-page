@@ -331,6 +331,14 @@ h2 {
   display: none;
 }
 
+.auth-panel.is-signed-in .auth-main {
+  display: none;
+}
+
+.auth-panel.is-signed-in .auth-layout {
+  grid-template-columns: 1fr;
+}
+
 .auth-remember {
   justify-self: start;
   margin-top: 2px;
@@ -355,6 +363,47 @@ h2 {
   border-radius: 8px;
   padding: 13px;
   background: #fbfcfa;
+}
+
+.account-summary h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.account-details {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.account-details.is-hidden {
+  display: none;
+}
+
+.account-details div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 11px;
+  background: #fff;
+}
+
+.account-details dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.account-details dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 label {

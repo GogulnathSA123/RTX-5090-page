@@ -10,6 +10,7 @@ A GitHub Pages booking dashboard for the shared RTX 5090 system.
 - Prevents overlapping bookings in the UI and with a database constraint.
 - Lets users cancel their own upcoming bookings from the queue.
 - Keeps sign-in session-only unless **Remember this device** is selected.
+- Shows signed-in account details with name, mail, and upcoming booked slots.
 - Runs as a static site on GitHub Pages, with no repository credential field.
 
 ## Supabase Setup

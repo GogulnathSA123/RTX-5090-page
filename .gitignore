@@ -1,0 +1,14 @@
+.claude/
+Client Handovers/
+Task sheet/
+handover_slides/
+output_dopchim_slide/
+
+*.docx
+*.pptx
+*.pdf
+*.extracted.txt
+
+*.log
+.DS_Store
+Thumbs.db

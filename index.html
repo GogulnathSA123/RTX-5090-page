@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LabShare PC Booking</title>
+    <meta
+      name="description"
+      content="Shared lab PC booking dashboard hosted on GitHub Pages."
+    >
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="workspace-hero">
+        <img
+          src="./assets/lab-workstation.png"
+          alt="A shared lab workstation"
+          class="workspace-hero__image"
+        >
+        <div class="workspace-hero__shade"></div>
+        <div class="workspace-hero__content">
+          <div class="brand-row">
+            <span class="brand-mark" aria-hidden="true">LS</span>
+            <span>LabShare</span>
+          </div>
+          <h1>Shared PC Booking</h1>
+          <p>Availability, reservations, and usage balance for one lab system.</p>
+        </div>
+        <aside class="sync-summary" aria-live="polite">
+          <span class="sync-summary__label">Storage</span>
+          <strong id="syncMode">Local preview</strong>
+          <span id="syncDetail">Connect GitHub for shared bookings.</span>
+        </aside>
+      </header>
+
+      <main class="main-grid">
+        <section class="dashboard-panel" aria-labelledby="dashboardTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Availability dashboard</p>
+              <h2 id="dashboardTitle">Today</h2>
+            </div>
+            <button class="ghost-button" id="syncNowButton" type="button">
+              <span aria-hidden="true">↻</span>
+              Sync
+            </button>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric-card status-card" id="statusCard">
+              <span>Status</span>
+              <strong id="currentStatus">Checking</strong>
+              <small id="currentStatusMeta">Loading schedule</small>
+            </article>
+            <article class="metric-card">
+              <span>Next slot</span>
+              <strong id="nextSlot">--</strong>
+              <small id="nextSlotMeta">No upcoming booking</small>
+            </article>
+            <article class="metric-card">
+              <span>Booked today</span>
+              <strong id="todayHours">0h</strong>
+              <small id="todayHoursMeta">Across all members</small>
+            </article>
+            <article class="metric-card">
+              <span>This week</span>
+              <strong id="weekHours">0h</strong>
+              <small id="weekHoursMeta">Monday to Sunday</small>
+            </article>
+          </div>
+        </section>
+
+        <section class="booking-panel" aria-labelledby="bookingTitle">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">New booking</p>
+              <h2 id="bookingTitle">Reserve the system</h2>
+            </div>
+          </div>
+
+          <form id="bookingForm" class="booking-form">
+            <label>
+              Member
+              <select id="memberSelect" name="member" required></select>
+            </label>
+            <label>
+              Date
+              <input id="bookingDate" name="date" type="date" required>
+            </label>
+            <label>
+              Start
+              <select id="startTime" name="start" required></select>
+            </label>
+            <label>
+              Duration
+              <select id="duration" name="duration" required>
+                <option value="30">30 minutes</option>
+                <option value="60" selected>1 hour</option>
+                <option value="90">1 hour 30 minutes</option>
+                <option value="120">2 hours</option>
+                <option value="180">3 hours</option>
+                <option value="240">4 hours</option>
+              </select>
+            </label>
+            <label class="full-width">
+              Work focus
+              <input
+                id="bookingTitleInput"
+                name="title"
+                type="text"
+                maxlength="80"
+                placeholder="Experiment, simulation, analysis"
+                required
+              >
+            </label>
+            <button class="primary-button full-width" type="submit">
+              Book slot
+            </button>
+          </form>
+        </section>
+
+        <section class="timeline-panel" aria-labelledby="timelineTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Schedule</p>
+              <h2 id="timelineTitle">Availability</h2>
+            </div>
+            <input id="timelineDate" class="date-picker" type="date">
+          </div>
+          <div class="timeline-shell">
+            <div id="timelineCanvas" class="timeline-canvas"></div>
+          </div>
+        </section>
+
+        <section class="side-panel" aria-label="Upcoming bookings and team usage">
+          <div class="panel-block">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Queue</p>
+                <h2>Upcoming</h2>
+              </div>
+            </div>
+            <div id="upcomingList" class="booking-list"></div>
+          </div>
+
+          <div class="panel-block">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Balance</p>
+                <h2>Team usage</h2>
+              </div>
+            </div>
+            <div id="usageList" class="usage-list"></div>
+          </div>
+
+          <details class="settings-panel">
+            <summary>GitHub storage</summary>
+            <form id="githubForm" class="github-form">
+              <label>
+                Owner
+                <input id="repoOwner" name="owner" autocomplete="off" spellcheck="false">
+              </label>
+              <label>
+                Repository
+                <input id="repoName" name="repo" autocomplete="off" spellcheck="false">
+              </label>
+              <label>
+                Branch
+                <input id="repoBranch" name="branch" value="main" autocomplete="off" spellcheck="false">
+              </label>
+              <label>
+                Data path
+                <input id="dataPath" name="path" value="data/bookings.json" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="full-width">
+                Token
+                <input id="githubToken" name="token" type="password" autocomplete="off">
+              </label>
+              <label class="checkbox-row full-width">
+                <input id="rememberToken" name="rememberToken" type="checkbox">
+                <span>Remember on this device</span>
+              </label>
+              <div class="button-row full-width">
+                <button class="primary-button" type="submit">Connect</button>
+                <button class="ghost-button" id="clearTokenButton" type="button">Clear</button>
+              </div>
+            </form>
+          </details>
+        </section>
+
+        <section class="open-window-panel" aria-labelledby="openWindowTitle">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Open windows</p>
+              <h2 id="openWindowTitle">Available time</h2>
+            </div>
+          </div>
+          <div id="openWindowList" class="open-window-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js" defer></script>
+  </body>
+</html>

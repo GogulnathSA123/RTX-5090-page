@@ -1,0 +1,22 @@
+{
+  "systemName": "Shared Lab PC",
+  "members": [
+    {
+      "id": "member-1",
+      "name": "Member 1",
+      "color": "#127c78"
+    },
+    {
+      "id": "member-2",
+      "name": "Member 2",
+      "color": "#c98624"
+    },
+    {
+      "id": "member-3",
+      "name": "Member 3",
+      "color": "#416984"
+    }
+  ],
+  "bookings": [],
+  "updatedAt": "2026-06-15T00:00:00.000Z"
+}

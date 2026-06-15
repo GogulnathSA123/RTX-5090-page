@@ -8,6 +8,8 @@ A GitHub Pages booking dashboard for the shared RTX 5090 system.
 - Uses Supabase email/password signup and signin.
 - Stores shared bookings in Supabase instead of GitHub commits.
 - Prevents overlapping bookings in the UI and with a database constraint.
+- Lets users cancel their own upcoming bookings from the queue.
+- Keeps sign-in session-only unless **Remember this device** is selected.
 - Runs as a static site on GitHub Pages, with no repository credential field.
 
 ## Supabase Setup
@@ -29,6 +31,12 @@ https://gogulnathsa123.github.io/RTX-5090-page/
 5. Make sure **Authentication -> Providers -> Email** is enabled.
 
 The site uses the Supabase project URL plus the frontend-safe publishable key. The old repository credential field is no longer used.
+
+## Booking Rules
+
+- Upcoming bookings show a **Cancel** button only to the account that created them.
+- Supabase row-level security also blocks users from deleting bookings they do not own.
+- Without **Remember this device**, the browser will ask for sign-in again in a new browser session.
 
 ## Local Preview
 

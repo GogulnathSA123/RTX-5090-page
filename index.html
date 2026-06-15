@@ -45,42 +45,49 @@
           </div>
 
           <div class="auth-layout">
-            <div class="auth-tabs" role="tablist" aria-label="Account mode">
-              <button class="auth-tab is-active" id="signInTab" type="button" aria-selected="true">Sign in</button>
-              <button class="auth-tab" id="signUpTab" type="button" aria-selected="false">Sign up</button>
+            <div class="auth-main">
+              <div class="auth-tabs" role="tablist" aria-label="Account mode">
+                <button class="auth-tab is-active" id="signInTab" type="button" role="tab" aria-selected="true" aria-controls="signInForm">Sign in</button>
+                <button class="auth-tab" id="signUpTab" type="button" role="tab" aria-selected="false" aria-controls="signUpForm">Sign up</button>
+              </div>
+
+              <form id="signInForm" class="auth-form" role="tabpanel" aria-labelledby="signInTab">
+                <label>
+                  Email
+                  <input id="signInEmail" name="email" type="email" autocomplete="email" placeholder="you@university.edu" required>
+                </label>
+                <label>
+                  Password
+                  <input id="signInPassword" name="password" type="password" autocomplete="current-password" required>
+                </label>
+                <button class="primary-button full-width" type="submit">Sign in</button>
+              </form>
+
+              <form id="signUpForm" class="auth-form is-hidden" role="tabpanel" aria-labelledby="signUpTab">
+                <label>
+                  Name
+                  <input id="signUpName" name="name" type="text" autocomplete="name" maxlength="80" placeholder="Your name" required>
+                </label>
+                <label>
+                  Email
+                  <input id="signUpEmail" name="email" type="email" autocomplete="email" placeholder="you@university.edu" required>
+                </label>
+                <label>
+                  Password
+                  <input id="signUpPassword" name="password" type="password" autocomplete="new-password" minlength="6" required>
+                </label>
+                <label>
+                  Confirm
+                  <input id="signUpConfirm" name="confirm" type="password" autocomplete="new-password" minlength="6" required>
+                </label>
+                <button class="primary-button full-width" type="submit">Create account</button>
+              </form>
+
+              <label class="checkbox-row auth-remember">
+                <input id="rememberSession" name="rememberSession" type="checkbox">
+                <span>Remember this device</span>
+              </label>
             </div>
-
-            <form id="signInForm" class="auth-form">
-              <label>
-                Email
-                <input id="signInEmail" name="email" type="email" autocomplete="email" placeholder="you@university.edu" required>
-              </label>
-              <label>
-                Password
-                <input id="signInPassword" name="password" type="password" autocomplete="current-password" required>
-              </label>
-              <button class="primary-button" type="submit">Sign in</button>
-            </form>
-
-            <form id="signUpForm" class="auth-form is-hidden">
-              <label>
-                Name
-                <input id="signUpName" name="name" type="text" autocomplete="name" maxlength="80" placeholder="Your name" required>
-              </label>
-              <label>
-                Email
-                <input id="signUpEmail" name="email" type="email" autocomplete="email" placeholder="you@university.edu" required>
-              </label>
-              <label>
-                Password
-                <input id="signUpPassword" name="password" type="password" autocomplete="new-password" minlength="6" required>
-              </label>
-              <label>
-                Confirm
-                <input id="signUpConfirm" name="confirm" type="password" autocomplete="new-password" minlength="6" required>
-              </label>
-              <button class="primary-button" type="submit">Create account</button>
-            </form>
 
             <div class="account-summary">
               <p id="accountStatus" class="helper-text">Sign in before booking.</p>
@@ -206,16 +213,6 @@
             </div>
             <div id="usageList" class="usage-list"></div>
           </div>
-
-          <details class="settings-panel">
-            <summary>Supabase storage</summary>
-            <div class="repository-lock">
-              <span>Project</span>
-              <strong id="storageProject">liwamsxkjccrrozqmxfr.supabase.co</strong>
-              <small id="storageMeta">Authenticated users share one bookings table</small>
-            </div>
-            <p class="helper-text">No repository credential is required. Sign in, then book a slot.</p>
-          </details>
         </section>
 
         <section class="open-window-panel" aria-labelledby="openWindowTitle">

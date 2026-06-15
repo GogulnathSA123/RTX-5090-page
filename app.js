@@ -5,13 +5,19 @@ const DAY_END = 22 * 60;
 const SLOT_HEIGHT = 30;
 const SUPABASE_URL = "https://liwamsxkjccrrozqmxfr.supabase.co";
 const SUPABASE_KEY = "sb_publishable_MZv75VvlJtkt8oYytyCsYA_ZcnHzDy2";
+const SUPABASE_STORAGE_KEY = "rtx5090:supabase-auth";
+const REMEMBER_SESSION_KEY = "rtx5090:remember-session";
 const MEMBER_COLORS = ["#127c78", "#c98624", "#416984", "#2f7d55", "#8a5a9e", "#c75945", "#586f9e"];
+
+clearUnrememberedStoredSession();
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    persistSession: true
+    persistSession: true,
+    storage: sessionStorageAdapter(),
+    storageKey: SUPABASE_STORAGE_KEY
   }
 });
 
@@ -52,6 +58,7 @@ const els = {
   signUpEmail: document.querySelector("#signUpEmail"),
   signUpPassword: document.querySelector("#signUpPassword"),
   signUpConfirm: document.querySelector("#signUpConfirm"),
+  rememberSession: document.querySelector("#rememberSession"),
   accountStatus: document.querySelector("#accountStatus"),
   authState: document.querySelector("#authState"),
   signOutButton: document.querySelector("#signOutButton"),
@@ -64,8 +71,6 @@ const els = {
   upcomingList: document.querySelector("#upcomingList"),
   usageList: document.querySelector("#usageList"),
   openWindowList: document.querySelector("#openWindowList"),
-  storageProject: document.querySelector("#storageProject"),
-  storageMeta: document.querySelector("#storageMeta"),
   toast: document.querySelector("#toast")
 };
 
@@ -77,8 +82,8 @@ async function init() {
 
   els.bookingDate.value = todayISO();
   els.timelineDate.value = state.selectedDate;
-  els.storageProject.textContent = new URL(SUPABASE_URL).host;
-  els.storageMeta.textContent = "Authenticated users share one bookings table";
+  els.rememberSession.checked = shouldRememberSession();
+  setAuthMode("signin");
 
   const { data } = await supabase.auth.getSession();
   state.currentUser = data.session?.user ? userFromSupabase(data.session.user) : null;
@@ -107,6 +112,7 @@ function wireEvents() {
   els.signUpForm.addEventListener("submit", handleSignUpSubmit);
   els.signOutButton.addEventListener("click", handleSignOut);
   els.upcomingList.addEventListener("click", handleCancelClick);
+  els.rememberSession.addEventListener("change", () => setSessionRemembered(els.rememberSession.checked));
 }
 
 function setAuthMode(mode) {
@@ -117,6 +123,61 @@ function setAuthMode(mode) {
   els.signUpTab.setAttribute("aria-selected", String(isSignUp));
   els.signInForm.classList.toggle("is-hidden", isSignUp);
   els.signUpForm.classList.toggle("is-hidden", !isSignUp);
+  els.signInForm.hidden = isSignUp;
+  els.signUpForm.hidden = !isSignUp;
+}
+
+function sessionStorageAdapter() {
+  return {
+    getItem(key) {
+      if (shouldRememberSession()) {
+        return safeStorageGet(globalThis.localStorage, key) || safeStorageGet(globalThis.sessionStorage, key);
+      }
+
+      return safeStorageGet(globalThis.sessionStorage, key);
+    },
+    setItem(key, value) {
+      if (shouldRememberSession()) {
+        safeStorageSet(globalThis.localStorage, key, value);
+        safeStorageRemove(globalThis.sessionStorage, key);
+        return;
+      }
+
+      safeStorageSet(globalThis.sessionStorage, key, value);
+      safeStorageRemove(globalThis.localStorage, key);
+    },
+    removeItem(key) {
+      safeStorageRemove(globalThis.localStorage, key);
+      safeStorageRemove(globalThis.sessionStorage, key);
+    }
+  };
+}
+
+function shouldRememberSession() {
+  return safeStorageGet(globalThis.localStorage, REMEMBER_SESSION_KEY) === "true";
+}
+
+function setSessionRemembered(remember) {
+  const storedSession =
+    safeStorageGet(globalThis.localStorage, SUPABASE_STORAGE_KEY) ||
+    safeStorageGet(globalThis.sessionStorage, SUPABASE_STORAGE_KEY);
+
+  if (remember) {
+    safeStorageSet(globalThis.localStorage, REMEMBER_SESSION_KEY, "true");
+    if (storedSession) safeStorageSet(globalThis.localStorage, SUPABASE_STORAGE_KEY, storedSession);
+    safeStorageRemove(globalThis.sessionStorage, SUPABASE_STORAGE_KEY);
+    return;
+  }
+
+  safeStorageRemove(globalThis.localStorage, REMEMBER_SESSION_KEY);
+  safeStorageRemove(globalThis.localStorage, SUPABASE_STORAGE_KEY);
+  if (storedSession) safeStorageSet(globalThis.sessionStorage, SUPABASE_STORAGE_KEY, storedSession);
+}
+
+function clearUnrememberedStoredSession() {
+  if (!shouldRememberSession()) {
+    safeStorageRemove(globalThis.localStorage, SUPABASE_STORAGE_KEY);
+  }
 }
 
 async function handleSignInSubmit(event) {
@@ -129,6 +190,8 @@ async function handleSignInSubmit(event) {
     showToast("Enter a valid email address.");
     return;
   }
+
+  setSessionRemembered(els.rememberSession.checked);
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
@@ -171,6 +234,8 @@ async function handleSignUpSubmit(event) {
     return;
   }
 
+  setSessionRemembered(els.rememberSession.checked);
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -209,7 +274,10 @@ async function handleSignOut() {
   }
 
   state.currentUser = null;
+  setSessionRemembered(false);
+  els.rememberSession.checked = false;
   els.signInPassword.value = "";
+  setAuthMode("signin");
   render();
   showToast("Signed out.");
 }
@@ -299,9 +367,16 @@ function buildDraftBooking() {
 async function handleCancelClick(event) {
   const button = event.target.closest("[data-cancel-id]");
   if (!button || state.isSaving) return;
+  const booking = state.data.bookings.find((item) => item.id === button.dataset.cancelId);
+
+  if (!booking || booking.memberId !== state.currentUser?.id) {
+    showToast("Only the booking owner can cancel that slot.");
+    return;
+  }
 
   try {
     state.isSaving = true;
+    button.disabled = true;
     const { error } = await supabase.from("bookings").delete().eq("id", button.dataset.cancelId);
     if (error) throw error;
     await loadBookings({ silent: true });
@@ -310,6 +385,7 @@ async function handleCancelClick(event) {
     showToast(supabaseBookingError(error, "Booking could not be cancelled."));
   } finally {
     state.isSaving = false;
+    if (button.isConnected) button.disabled = false;
   }
 }
 
@@ -505,8 +581,7 @@ function renderTimeline() {
 function renderUpcoming() {
   const upcoming = activeBookings()
     .filter((booking) => bookingEndsAfterNow(booking))
-    .sort(compareBookings)
-    .slice(0, 8);
+    .sort(compareBookings);
 
   if (!upcoming.length) {
     els.upcomingList.innerHTML = `<div class="empty-state">No upcoming bookings.</div>`;
@@ -523,7 +598,7 @@ function renderUpcoming() {
             <strong>${escapeHtml(member.name)} - ${escapeHtml(booking.title)}</strong>
             <span>${formatDate(booking.date)} - ${escapeHtml(booking.start)}-${escapeHtml(booking.end)}</span>
           </div>
-          ${canCancel ? `<button class="cancel-button" type="button" data-cancel-id="${escapeAttr(booking.id)}" aria-label="Cancel booking">x</button>` : ""}
+          ${canCancel ? `<button class="cancel-button" type="button" data-cancel-id="${escapeAttr(booking.id)}">Cancel</button>` : ""}
         </article>
       `;
     })
@@ -774,6 +849,30 @@ function hashString(value) {
     hash = ((hash << 5) + hash) ^ char.charCodeAt(0);
   }
   return hash >>> 0;
+}
+
+function safeStorageGet(storage, key) {
+  try {
+    return storage?.getItem(key) || "";
+  } catch {
+    return "";
+  }
+}
+
+function safeStorageSet(storage, key, value) {
+  try {
+    storage?.setItem(key, value);
+  } catch {
+    // Session persistence is optional; auth still works for the current flow.
+  }
+}
+
+function safeStorageRemove(storage, key) {
+  try {
+    storage?.removeItem(key);
+  } catch {
+    // Ignore locked-down browser storage.
+  }
 }
 
 function timeToMinutes(value) {

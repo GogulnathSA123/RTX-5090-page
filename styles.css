@@ -167,8 +167,7 @@ button {
 .timeline-panel,
 .side-panel,
 .open-window-panel,
-.panel-block,
-.settings-panel {
+.panel-block {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.96);
@@ -210,8 +209,7 @@ button {
   padding: 18px;
 }
 
-.panel-block,
-.settings-panel {
+.panel-block {
   padding: 18px;
 }
 
@@ -292,25 +290,35 @@ h2 {
 
 .auth-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) minmax(240px, 0.42fr);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.34fr);
   gap: 14px;
   align-items: start;
 }
 
+.auth-main {
+  display: grid;
+  gap: 12px;
+}
+
 .auth-tabs {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px;
+  background: #f5f8f6;
 }
 
 .auth-tab {
   min-height: 42px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 0 14px;
   color: var(--ink);
-  background: #fff;
+  background: transparent;
   font-weight: 900;
-  text-align: left;
+  text-align: center;
 }
 
 .auth-tab.is-active {
@@ -321,6 +329,11 @@ h2 {
 
 .auth-form.is-hidden {
   display: none;
+}
+
+.auth-remember {
+  justify-self: start;
+  margin-top: 2px;
 }
 
 .auth-state {
@@ -543,14 +556,14 @@ summary:focus-visible {
 }
 
 .cancel-button {
-  width: 34px;
-  height: 34px;
+  min-height: 34px;
   border: 1px solid rgba(199, 89, 69, 0.24);
   border-radius: 8px;
+  padding: 0 11px;
   color: var(--coral);
   background: #fff5f2;
-  font-size: 1.1rem;
-  line-height: 1;
+  font-size: 0.78rem;
+  font-weight: 900;
 }
 
 .cancel-button:hover {
@@ -597,53 +610,12 @@ summary:focus-visible {
   font-weight: 700;
 }
 
-.settings-panel summary {
-  cursor: pointer;
-  color: var(--ink);
-  font-weight: 900;
-}
-
-.settings-panel[open] summary {
-  margin-bottom: 14px;
-}
-
 .helper-text {
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.45;
-}
-
-.repository-lock {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
-  background: #fbfcfa;
-}
-
-.repository-lock span,
-.repository-lock small {
-  color: var(--muted);
-}
-
-.repository-lock span {
-  font-size: 0.74rem;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.repository-lock strong {
-  overflow-wrap: anywhere;
-  font-size: 0.95rem;
-}
-
-.repository-lock small {
-  font-size: 0.78rem;
-  font-weight: 700;
 }
 
 .checkbox-row {
@@ -748,10 +720,6 @@ summary:focus-visible {
 
   .auth-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .auth-tab {
-    text-align: center;
   }
 
   .section-heading {

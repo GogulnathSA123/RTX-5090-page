@@ -17,6 +17,11 @@ A GitHub Pages booking dashboard for one shared lab PC used by three lab members
 3. Open the deployed site.
 4. In **GitHub storage**, enter the repository owner, repository name, branch, data path, and a GitHub token.
 
+If the first Pages deploy fails with `Get Pages site failed`, the repository does not have Pages enabled yet. You can fix it either way:
+
+- Go to **Settings -> Pages** and set the source to **GitHub Actions**.
+- Or add a repository secret named `PAGES_TOKEN` with Pages write permission, then rerun the workflow. The workflow will use that token to enable Pages automatically.
+
 For writing bookings from the browser, use a fine-grained GitHub token limited to this repository with **Contents: Read and write** permission. The token is never committed to the repo; it is stored only in the browser, either for the session or on that device if selected.
 
 ## Team Names

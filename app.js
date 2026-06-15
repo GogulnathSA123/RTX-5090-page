@@ -318,16 +318,25 @@ async function handleBookingSubmit(event) {
       end_minutes: timeToMinutes(draft.end),
       title: draft.title
     };
-    const { error } = await supabase.from("bookings").insert(row);
+    const { data, error } = await supabase
+      .from("bookings")
+      .insert(row)
+      .select("id,user_id,member_name,member_email,booking_date,start_minutes,end_minutes,title,created_at")
+      .single();
 
     if (error) {
       throw error;
+    }
+
+    if (data) {
+      updateLocalBookings([...state.data.bookings, bookingFromRow(data)]);
     }
 
     els.bookingForm.reset();
     els.bookingDate.value = draft.date;
     els.timelineDate.value = draft.date;
     state.selectedDate = draft.date;
+    render();
     await loadBookings({ silent: true });
     showToast("Booking saved.");
   } catch (error) {
@@ -389,6 +398,8 @@ async function handleCancelClick(event) {
     button.disabled = true;
     const { error } = await supabase.from("bookings").delete().eq("id", button.dataset.cancelId);
     if (error) throw error;
+    updateLocalBookings(state.data.bookings.filter((item) => item.id !== button.dataset.cancelId));
+    render();
     await loadBookings({ silent: true });
     showToast("Booking cancelled.");
   } catch (error) {
@@ -433,7 +444,11 @@ async function loadBookings(options = {}) {
 }
 
 function normalizeRows(rows) {
-  const bookings = rows.map((row) => ({
+  return normalizeBookings(rows.map(bookingFromRow));
+}
+
+function bookingFromRow(row) {
+  return {
     id: row.id,
     memberId: row.user_id,
     memberName: row.member_name || "Unknown member",
@@ -443,7 +458,14 @@ function normalizeRows(rows) {
     end: minutesToTime(row.end_minutes),
     title: row.title || "Lab work",
     createdAt: row.created_at
-  }));
+  };
+}
+
+function updateLocalBookings(bookings) {
+  state.data = normalizeBookings(bookings);
+}
+
+function normalizeBookings(bookings) {
   const members = [];
 
   for (const booking of bookings) {
@@ -469,7 +491,7 @@ function normalizeRows(rows) {
   return {
     systemName: "RTX 5090",
     members,
-    bookings,
+    bookings: bookings.sort(compareBookings),
     updatedAt: new Date().toISOString()
   };
 }

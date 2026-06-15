@@ -1,18 +1,22 @@
 const DAY_START = 8 * 60;
 const DAY_END = 22 * 60;
 const SLOT_HEIGHT = 30;
-const LOCAL_DATA_KEY = "labshare:data";
-const SETTINGS_KEY = "labshare:github-settings";
-const TOKEN_KEY = "labshare:github-token";
-const SESSION_TOKEN_KEY = "labshare:session-token";
+const LOCKED_REPOSITORY = Object.freeze({
+  owner: "GogulnathSA123",
+  repo: "RTX-5090-page",
+  branch: "main",
+  path: "data/bookings.json"
+});
+const LOCAL_DATA_KEY = "rtx5090:data";
+const SETTINGS_KEY = "rtx5090:github-settings";
+const TOKEN_KEY = "rtx5090:github-token";
+const SESSION_TOKEN_KEY = "rtx5090:session-token";
+const LOGIN_KEY = "rtx5090:mail-login";
+const MEMBER_COLORS = ["#127c78", "#c98624", "#416984", "#2f7d55", "#8a5a9e", "#c75945", "#586f9e"];
 
 const DEFAULT_DATA = {
-  systemName: "Shared Lab PC",
-  members: [
-    { id: "member-1", name: "Member 1", color: "#127c78" },
-    { id: "member-2", name: "Member 2", color: "#c98624" },
-    { id: "member-3", name: "Member 3", color: "#416984" }
-  ],
+  systemName: "RTX 5090",
+  members: [],
   bookings: [],
   updatedAt: new Date().toISOString()
 };
@@ -21,12 +25,10 @@ const state = {
   data: clone(DEFAULT_DATA),
   selectedDate: todayISO(),
   settings: {
-    owner: "",
-    repo: "",
-    branch: "main",
-    path: "data/bookings.json",
+    ...LOCKED_REPOSITORY,
     rememberToken: false
   },
+  currentUser: null,
   token: "",
   remoteSha: "",
   isSaving: false
@@ -45,8 +47,13 @@ const els = {
   todayHoursMeta: document.querySelector("#todayHoursMeta"),
   weekHours: document.querySelector("#weekHours"),
   weekHoursMeta: document.querySelector("#weekHoursMeta"),
-  memberSelect: document.querySelector("#memberSelect"),
+  currentMember: document.querySelector("#currentMember"),
   bookingForm: document.querySelector("#bookingForm"),
+  loginForm: document.querySelector("#loginForm"),
+  loginEmail: document.querySelector("#loginEmail"),
+  loginName: document.querySelector("#loginName"),
+  loginStatus: document.querySelector("#loginStatus"),
+  signOutButton: document.querySelector("#signOutButton"),
   bookingDate: document.querySelector("#bookingDate"),
   startTime: document.querySelector("#startTime"),
   duration: document.querySelector("#duration"),
@@ -57,10 +64,8 @@ const els = {
   usageList: document.querySelector("#usageList"),
   openWindowList: document.querySelector("#openWindowList"),
   githubForm: document.querySelector("#githubForm"),
-  repoOwner: document.querySelector("#repoOwner"),
-  repoName: document.querySelector("#repoName"),
-  repoBranch: document.querySelector("#repoBranch"),
-  dataPath: document.querySelector("#dataPath"),
+  lockedRepoName: document.querySelector("#lockedRepoName"),
+  lockedRepoMeta: document.querySelector("#lockedRepoMeta"),
   githubToken: document.querySelector("#githubToken"),
   rememberToken: document.querySelector("#rememberToken"),
   clearTokenButton: document.querySelector("#clearTokenButton"),
@@ -70,6 +75,7 @@ const els = {
 init();
 
 async function init() {
+  loadLogin();
   loadSettings();
   populateTimeOptions();
   wireEvents();
@@ -78,6 +84,7 @@ async function init() {
   els.timelineDate.value = state.selectedDate;
 
   await loadInitialData();
+  ensureCurrentMember();
   render();
 }
 
@@ -89,9 +96,42 @@ function wireEvents() {
     renderOpenWindows();
   });
   els.syncNowButton.addEventListener("click", () => syncFromGithub());
+  els.loginForm.addEventListener("submit", handleLoginSubmit);
+  els.signOutButton.addEventListener("click", handleSignOut);
   els.githubForm.addEventListener("submit", handleGithubSubmit);
   els.clearTokenButton.addEventListener("click", clearGithubToken);
   els.upcomingList.addEventListener("click", handleCancelClick);
+}
+
+function handleLoginSubmit(event) {
+  event.preventDefault();
+
+  const email = normalizeEmail(els.loginEmail.value);
+  if (!email || !email.includes("@")) {
+    showToast("Enter a valid email address.");
+    return;
+  }
+
+  const name = cleanName(els.loginName.value) || nameFromEmail(email);
+  state.currentUser = {
+    email,
+    name,
+    memberId: memberIdForEmail(email)
+  };
+
+  localStorage.setItem(LOGIN_KEY, JSON.stringify(state.currentUser));
+  ensureCurrentMember();
+  render();
+  showToast(`Signed in as ${name}.`);
+}
+
+function handleSignOut() {
+  state.currentUser = null;
+  localStorage.removeItem(LOGIN_KEY);
+  els.loginEmail.value = "";
+  els.loginName.value = "";
+  render();
+  showToast("Signed out.");
 }
 
 async function loadInitialData() {
@@ -107,7 +147,8 @@ async function loadInitialData() {
   const local = readJson(localStorage.getItem(LOCAL_DATA_KEY));
   if (local) {
     state.data = normalizeData(local);
-    updateSyncStatus("Local preview", "Stored in this browser.");
+    ensureCurrentMember();
+    updateSyncStatus("GitHub read-only", "Using cached bookings for the locked repo.");
     return;
   }
 
@@ -119,7 +160,8 @@ async function loadInitialData() {
     state.data = normalizeData(DEFAULT_DATA);
   }
 
-  updateSyncStatus("Local preview", "Connect GitHub for shared bookings.");
+  ensureCurrentMember();
+  updateSyncStatus("GitHub read-only", "Locked to GogulnathSA123/RTX-5090-page.");
 }
 
 async function handleBookingSubmit(event) {
@@ -132,6 +174,7 @@ async function handleBookingSubmit(event) {
   try {
     state.isSaving = true;
     await refreshBeforeWrite();
+    ensureCurrentMember();
 
     const conflict = findConflict(draft);
     if (conflict) {
@@ -160,13 +203,18 @@ async function handleBookingSubmit(event) {
 }
 
 function buildDraftBooking() {
-  const memberId = els.memberSelect.value;
+  const member = ensureCurrentMember();
   const date = els.bookingDate.value;
   const start = els.startTime.value;
   const duration = Number(els.duration.value);
   const title = els.bookingTitleInput.value.trim();
 
-  if (!memberId || !date || !start || !duration || !title) {
+  if (!member) {
+    showToast("Sign in with email before booking.");
+    return null;
+  }
+
+  if (!date || !start || !duration || !title) {
     showToast("Complete all booking fields.");
     return null;
   }
@@ -181,7 +229,9 @@ function buildDraftBooking() {
 
   return {
     id: `booking-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    memberId,
+    memberId: member.id,
+    memberName: member.name,
+    memberEmail: member.email,
     date,
     start,
     end: minutesToTime(endMinutes),
@@ -218,10 +268,7 @@ async function handleGithubSubmit(event) {
   event.preventDefault();
 
   state.settings = {
-    owner: els.repoOwner.value.trim(),
-    repo: els.repoName.value.trim(),
-    branch: els.repoBranch.value.trim() || "main",
-    path: normalizePath(els.dataPath.value.trim()) || "data/bookings.json",
+    ...LOCKED_REPOSITORY,
     rememberToken: els.rememberToken.checked
   };
   state.token = els.githubToken.value.trim();
@@ -237,8 +284,8 @@ async function handleGithubSubmit(event) {
 
 async function syncFromGithub(options = {}) {
   if (!hasGithubTarget()) {
-    updateSyncStatus("Local preview", "Add repository settings to sync.");
-    if (!options.silent) showToast("Repository settings are empty.");
+    updateSyncStatus("GitHub unavailable", "Repository target is locked but unavailable.");
+    if (!options.silent) showToast("Locked repository target is unavailable.");
     return;
   }
 
@@ -246,8 +293,9 @@ async function syncFromGithub(options = {}) {
   const remote = await fetchGithubData();
   state.data = normalizeData(remote.data);
   state.remoteSha = remote.sha;
+  ensureCurrentMember();
   localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(state.data));
-  updateSyncStatus("GitHub", `${state.settings.owner}/${state.settings.repo}:${state.settings.branch}`);
+  updateSyncStatus(state.token ? "GitHub connected" : "GitHub read-only", `${state.settings.owner}/${state.settings.repo}:${state.settings.branch}`);
   render();
 
   if (!options.silent) showToast("Bookings synced.");
@@ -261,6 +309,7 @@ async function refreshBeforeWrite() {
 
 async function persistData() {
   state.data = normalizeData(state.data);
+  ensureCurrentMember();
   state.data.updatedAt = new Date().toISOString();
 
   if (hasGithubTarget()) {
@@ -270,12 +319,12 @@ async function persistData() {
 
     await saveGithubData();
     localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(state.data));
-    updateSyncStatus("GitHub", `${state.settings.owner}/${state.settings.repo}:${state.settings.branch}`);
+    updateSyncStatus("GitHub connected", `${state.settings.owner}/${state.settings.repo}:${state.settings.branch}`);
     return;
   }
 
   localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(state.data));
-  updateSyncStatus("Local preview", "Stored in this browser.");
+  updateSyncStatus("GitHub read-only", "Stored locally because GitHub is unavailable.");
 }
 
 async function fetchGithubData() {
@@ -359,7 +408,8 @@ async function githubError(response, fallback) {
 }
 
 function render() {
-  renderMemberOptions();
+  renderAccount();
+  renderBookingIdentity();
   renderDashboard();
   renderTimeline();
   renderUpcoming();
@@ -387,7 +437,7 @@ function renderDashboard() {
 
   if (next) {
     els.nextSlot.textContent = formatBookingStart(next);
-    els.nextSlotMeta.textContent = `${memberName(next.memberId)} · ${next.title}`;
+    els.nextSlotMeta.textContent = `${memberName(next.memberId)} - ${next.title}`;
   } else {
     els.nextSlot.textContent = "--";
     els.nextSlotMeta.textContent = "No upcoming booking";
@@ -436,7 +486,7 @@ function renderTimeline() {
     block.style.height = `${Math.max(height, 4.8)}%`;
     block.style.setProperty("--booking-color", member.color);
     block.innerHTML = `
-      <strong>${escapeHtml(booking.start)}-${escapeHtml(booking.end)} · ${escapeHtml(member.name)}</strong>
+      <strong>${escapeHtml(booking.start)}-${escapeHtml(booking.end)} - ${escapeHtml(member.name)}</strong>
       <span>${escapeHtml(booking.title)}</span>
     `;
     els.timelineCanvas.append(block);
@@ -460,10 +510,10 @@ function renderUpcoming() {
       return `
         <article class="booking-item" style="border-left: 5px solid ${escapeAttr(member.color)}">
           <div>
-            <strong>${escapeHtml(member.name)} · ${escapeHtml(booking.title)}</strong>
-            <span>${formatDate(booking.date)} · ${escapeHtml(booking.start)}-${escapeHtml(booking.end)}</span>
+            <strong>${escapeHtml(member.name)} - ${escapeHtml(booking.title)}</strong>
+            <span>${formatDate(booking.date)} - ${escapeHtml(booking.start)}-${escapeHtml(booking.end)}</span>
           </div>
-          <button class="cancel-button" type="button" data-cancel-id="${escapeAttr(booking.id)}" aria-label="Cancel booking">×</button>
+          <button class="cancel-button" type="button" data-cancel-id="${escapeAttr(booking.id)}" aria-label="Cancel booking">x</button>
         </article>
       `;
     })
@@ -471,6 +521,11 @@ function renderUpcoming() {
 }
 
 function renderUsage() {
+  if (!state.data.members.length) {
+    els.usageList.innerHTML = `<div class="empty-state">No signed-in members yet.</div>`;
+    return;
+  }
+
   const usage = state.data.members.map((member) => ({
     ...member,
     minutes: minutesBookedByMemberThisWeek(member.id)
@@ -512,22 +567,34 @@ function renderOpenWindows() {
     .join("");
 }
 
-function renderMemberOptions() {
-  const currentValue = els.memberSelect.value;
-  els.memberSelect.innerHTML = state.data.members
-    .map((member) => `<option value="${escapeAttr(member.id)}">${escapeHtml(member.name)}</option>`)
-    .join("");
-
-  if (state.data.members.some((member) => member.id === currentValue)) {
-    els.memberSelect.value = currentValue;
+function renderAccount() {
+  if (state.currentUser) {
+    els.loginEmail.value = state.currentUser.email;
+    els.loginName.value = state.currentUser.name;
+    els.loginStatus.textContent = `Signed in as ${state.currentUser.name} (${state.currentUser.email}).`;
+    return;
   }
+
+  els.loginStatus.textContent = "Sign in with email before booking.";
+}
+
+function renderBookingIdentity() {
+  const member = ensureCurrentMember();
+  const submitButton = els.bookingForm.querySelector('button[type="submit"]');
+
+  if (member) {
+    els.currentMember.value = `${member.name} (${member.email})`;
+    submitButton.disabled = false;
+    return;
+  }
+
+  els.currentMember.value = "Sign in with email";
+  submitButton.disabled = true;
 }
 
 function renderGithubForm() {
-  els.repoOwner.value = state.settings.owner;
-  els.repoName.value = state.settings.repo;
-  els.repoBranch.value = state.settings.branch;
-  els.dataPath.value = state.settings.path;
+  els.lockedRepoName.textContent = `${LOCKED_REPOSITORY.owner}/${LOCKED_REPOSITORY.repo}`;
+  els.lockedRepoMeta.textContent = `${LOCKED_REPOSITORY.branch} / ${LOCKED_REPOSITORY.path}`;
   els.rememberToken.checked = state.settings.rememberToken;
   if (!els.githubToken.value && state.token) {
     els.githubToken.value = state.token;
@@ -661,7 +728,12 @@ function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
 }
 
 function memberById(id) {
-  return state.data.members.find((member) => member.id === id) || state.data.members[0];
+  return state.data.members.find((member) => member.id === id) || {
+    id,
+    name: "Unknown member",
+    email: "",
+    color: "#687381"
+  };
 }
 
 function memberName(id) {
@@ -674,17 +746,14 @@ function normalizeData(raw) {
     ...(raw && typeof raw === "object" ? raw : {})
   };
 
-  data.members = Array.isArray(data.members) && data.members.length
-    ? data.members.slice(0, 3).map((member, index) => ({
+  data.members = Array.isArray(data.members)
+    ? data.members.map((member, index) => ({
         id: String(member.id || `member-${index + 1}`),
         name: String(member.name || `Member ${index + 1}`),
-        color: member.color || DEFAULT_DATA.members[index]?.color || "#127c78"
+        email: member.email ? normalizeEmail(member.email) : "",
+        color: member.color || colorForIndex(index)
       }))
-    : clone(DEFAULT_DATA.members);
-
-  while (data.members.length < 3) {
-    data.members.push(clone(DEFAULT_DATA.members[data.members.length]));
-  }
+    : [];
 
   data.bookings = Array.isArray(data.bookings)
     ? data.bookings
@@ -696,10 +765,23 @@ function normalizeData(raw) {
           start: String(booking.start),
           end: String(booking.end),
           title: String(booking.title || "Lab work"),
+          memberName: booking.memberName ? String(booking.memberName) : "",
+          memberEmail: booking.memberEmail ? normalizeEmail(booking.memberEmail) : "",
           createdAt: String(booking.createdAt || data.updatedAt || new Date().toISOString()),
           status: booking.status ? String(booking.status) : undefined
         }))
     : [];
+
+  for (const booking of data.bookings) {
+    if (!data.members.some((member) => member.id === booking.memberId)) {
+      data.members.push({
+        id: booking.memberId,
+        name: booking.memberName || "Unknown member",
+        email: booking.memberEmail || "",
+        color: colorForIndex(data.members.length)
+      });
+    }
+  }
 
   data.updatedAt = data.updatedAt || new Date().toISOString();
   return data;
@@ -707,16 +789,10 @@ function normalizeData(raw) {
 
 function loadSettings() {
   const saved = readJson(localStorage.getItem(SETTINGS_KEY));
-  if (saved) {
-    state.settings = {
-      ...state.settings,
-      owner: saved.owner || "",
-      repo: saved.repo || "",
-      branch: saved.branch || "main",
-      path: normalizePath(saved.path || "data/bookings.json"),
-      rememberToken: Boolean(saved.rememberToken)
-    };
-  }
+  state.settings = {
+    ...LOCKED_REPOSITORY,
+    rememberToken: Boolean(saved?.rememberToken)
+  };
 
   state.token =
     (state.settings.rememberToken ? localStorage.getItem(TOKEN_KEY) : sessionStorage.getItem(SESSION_TOKEN_KEY)) ||
@@ -724,7 +800,7 @@ function loadSettings() {
 }
 
 function saveSettings() {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify({ rememberToken: state.settings.rememberToken }));
   localStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(SESSION_TOKEN_KEY);
 
@@ -739,12 +815,84 @@ function clearGithubToken() {
   els.githubToken.value = "";
   localStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(SESSION_TOKEN_KEY);
-  updateSyncStatus(hasGithubTarget() ? "GitHub read-only" : "Local preview", "Token cleared.");
+  updateSyncStatus("GitHub read-only", "Token cleared. Bookings still load from the locked repo.");
   showToast("Token cleared from this browser.");
 }
 
 function hasGithubTarget() {
-  return Boolean(state.settings.owner && state.settings.repo && state.settings.path);
+  return true;
+}
+
+function loadLogin() {
+  const saved = readJson(localStorage.getItem(LOGIN_KEY));
+  if (!saved?.email) return;
+
+  const email = normalizeEmail(saved.email);
+  if (!email) return;
+
+  state.currentUser = {
+    email,
+    name: cleanName(saved.name) || nameFromEmail(email),
+    memberId: saved.memberId || memberIdForEmail(email)
+  };
+}
+
+function ensureCurrentMember() {
+  if (!state.currentUser) return null;
+
+  const existing = state.data.members.find((member) => member.id === state.currentUser.memberId);
+  if (existing) {
+    existing.name = state.currentUser.name;
+    existing.email = state.currentUser.email;
+    existing.color = existing.color || colorForEmail(state.currentUser.email);
+    return existing;
+  }
+
+  const member = {
+    id: state.currentUser.memberId,
+    name: state.currentUser.name,
+    email: state.currentUser.email,
+    color: colorForEmail(state.currentUser.email)
+  };
+  state.data.members.push(member);
+  return member;
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function cleanName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function nameFromEmail(email) {
+  const localPart = email.split("@")[0] || "Member";
+  return localPart
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Member";
+}
+
+function memberIdForEmail(email) {
+  return `mail-${hashString(normalizeEmail(email)).toString(36)}`;
+}
+
+function colorForEmail(email) {
+  return MEMBER_COLORS[Math.abs(hashString(email)) % MEMBER_COLORS.length];
+}
+
+function colorForIndex(index) {
+  return MEMBER_COLORS[index % MEMBER_COLORS.length];
+}
+
+function hashString(value) {
+  let hash = 5381;
+  for (const char of String(value)) {
+    hash = ((hash << 5) + hash) ^ char.charCodeAt(0);
+  }
+  return hash >>> 0;
 }
 
 function normalizePath(path) {

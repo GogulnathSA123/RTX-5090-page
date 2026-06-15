@@ -90,7 +90,7 @@ button {
 
 .brand-mark {
   display: grid;
-  width: 36px;
+  width: 42px;
   height: 36px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.5);
@@ -157,7 +157,7 @@ button {
     "open side";
   gap: 18px;
   width: min(1180px, calc(100% - 32px));
-  margin: -24px auto 48px;
+  margin: 24px auto 48px;
 }
 
 .dashboard-panel,
@@ -277,7 +277,8 @@ h2 {
 }
 
 .booking-form,
-.github-form {
+.github-form,
+.login-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
@@ -302,6 +303,11 @@ select {
   color: var(--ink);
   background: #fff;
   outline: none;
+}
+
+input[readonly] {
+  color: var(--muted);
+  background: #f5f8f6;
 }
 
 input:focus,
@@ -336,6 +342,12 @@ summary:focus-visible {
 
 .primary-button:hover {
   background: var(--teal-dark);
+}
+
+.primary-button:disabled,
+.primary-button:disabled:hover {
+  cursor: not-allowed;
+  background: #8da9a6;
 }
 
 .ghost-button {
@@ -531,6 +543,45 @@ summary:focus-visible {
   margin-bottom: 14px;
 }
 
+.helper-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.repository-lock {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfa;
+}
+
+.repository-lock span,
+.repository-lock small {
+  color: var(--muted);
+}
+
+.repository-lock span {
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.repository-lock strong {
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+}
+
+.repository-lock small {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .checkbox-row {
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -616,12 +667,13 @@ summary:focus-visible {
 
   .main-grid {
     width: calc(100% - 20px);
-    margin-top: -18px;
+    margin-top: 12px;
   }
 
   .metric-grid,
   .booking-form,
-  .github-form {
+  .github-form,
+  .login-form {
     grid-template-columns: 1fr;
   }
 

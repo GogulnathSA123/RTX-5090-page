@@ -68,6 +68,7 @@ const els = {
   accountName: document.querySelector("#accountName"),
   accountEmail: document.querySelector("#accountEmail"),
   accountSlots: document.querySelector("#accountSlots"),
+  accountSlotList: document.querySelector("#accountSlotList"),
   authState: document.querySelector("#authState"),
   signOutButton: document.querySelector("#signOutButton"),
   bookingDate: document.querySelector("#bookingDate"),
@@ -120,6 +121,7 @@ function wireEvents() {
   els.signUpForm.addEventListener("submit", handleSignUpSubmit);
   els.signOutButton.addEventListener("click", handleSignOut);
   els.upcomingList.addEventListener("click", handleCancelClick);
+  els.accountSlotList.addEventListener("click", handleCancelClick);
   els.rememberSession.addEventListener("change", () => setSessionRemembered(els.rememberSession.checked));
 }
 
@@ -486,14 +488,15 @@ function renderAccount() {
   if (state.currentUser) {
     const ownedBookings = activeBookings().filter((booking) => booking.memberId === state.currentUser.id);
     const upcomingOwned = ownedBookings.filter((booking) => bookingEndsAfterNow(booking));
-    const nextOwned = upcomingOwned.sort(compareBookings)[0];
+    const sortedUpcomingOwned = upcomingOwned.sort(compareBookings);
+    const nextOwned = sortedUpcomingOwned[0];
 
     els.authPanel.classList.add("is-signed-in");
-    els.authTitle.textContent = "Account details";
+    els.authTitle.textContent = "Account information";
     els.signInEmail.value = state.currentUser.email;
     els.signUpEmail.value = state.currentUser.email;
     els.signUpName.value = state.currentUser.name;
-    els.accountSummaryEyebrow.textContent = "Account details";
+    els.accountSummaryEyebrow.textContent = "Account information";
     els.accountSummaryTitle.textContent = state.currentUser.name;
     els.accountStatus.textContent = nextOwned
       ? `Next booking ${formatBookingStart(nextOwned)}.`
@@ -501,8 +504,10 @@ function renderAccount() {
     els.accountDetails.classList.remove("is-hidden");
     els.accountName.textContent = state.currentUser.name;
     els.accountEmail.textContent = state.currentUser.email;
-    els.accountSlots.textContent = formatSlotCount(upcomingOwned.length);
+    els.accountSlots.textContent = formatSlotCount(sortedUpcomingOwned.length);
+    els.accountSlotList.innerHTML = renderAccountSlotList(sortedUpcomingOwned);
     els.authState.textContent = "Signed in";
+    els.signOutButton.hidden = false;
     els.signOutButton.disabled = false;
     return;
   }
@@ -516,7 +521,9 @@ function renderAccount() {
   els.accountName.textContent = "--";
   els.accountEmail.textContent = "--";
   els.accountSlots.textContent = "0 upcoming";
+  els.accountSlotList.innerHTML = "";
   els.authState.textContent = "Signed out";
+  els.signOutButton.hidden = true;
   els.signOutButton.disabled = true;
 }
 
@@ -632,6 +639,24 @@ function renderUpcoming() {
         </article>
       `;
     })
+    .join("");
+}
+
+function renderAccountSlotList(bookings) {
+  if (!bookings.length) {
+    return `<div class="account-slot-empty">No active slots.</div>`;
+  }
+
+  return bookings
+    .map((booking) => `
+      <article class="account-slot-item">
+        <div>
+          <strong>${formatDate(booking.date)} ${escapeHtml(booking.start)}-${escapeHtml(booking.end)}</strong>
+          <span>${escapeHtml(booking.title)}</span>
+        </div>
+        <button class="slot-x-button" type="button" data-cancel-id="${escapeAttr(booking.id)}" aria-label="Cancel ${escapeAttr(booking.title)} booking">x</button>
+      </article>
+    `)
     .join("");
 }
 

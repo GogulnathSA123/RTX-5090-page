@@ -8,7 +8,7 @@
       name="description"
       content="RTX 5090 booking dashboard hosted on GitHub Pages."
     >
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=account-info-slots">
   </head>
   <body>
     <div class="app-shell">
@@ -106,10 +106,13 @@
                 </div>
                 <div>
                   <dt>Booked slots</dt>
-                  <dd id="accountSlots">0 upcoming</dd>
+                  <dd>
+                    <span id="accountSlots">0 upcoming</span>
+                    <div class="account-slot-list" id="accountSlotList"></div>
+                  </dd>
                 </div>
               </dl>
-              <button class="ghost-button" id="signOutButton" type="button">Sign out</button>
+              <button class="ghost-button account-sign-out" id="signOutButton" type="button" hidden>Sign out</button>
             </div>
           </div>
         </section>
@@ -246,6 +249,6 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=account-info-slots"></script>
   </body>
 </html>

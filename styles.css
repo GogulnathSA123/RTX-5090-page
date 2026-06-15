@@ -365,6 +365,10 @@ h2 {
   background: #fbfcfa;
 }
 
+.auth-panel.is-signed-in .account-summary {
+  min-height: 260px;
+}
+
 .account-summary h3 {
   margin: 0;
   font-size: 1.05rem;
@@ -404,6 +408,68 @@ h2 {
   font-size: 0.9rem;
   font-weight: 800;
   overflow-wrap: anywhere;
+}
+
+.account-slot-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.account-slot-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px;
+  background: #fbfcfa;
+}
+
+.account-slot-item strong,
+.account-slot-item span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-slot-item strong {
+  font-size: 0.82rem;
+}
+
+.account-slot-item span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.account-slot-empty {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.slot-x-button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(199, 89, 69, 0.24);
+  border-radius: 50%;
+  color: var(--coral);
+  background: #fff5f2;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.slot-x-button:hover {
+  background: #ffe7e1;
+}
+
+.account-sign-out {
+  align-self: end;
+  margin-top: auto;
 }
 
 label {

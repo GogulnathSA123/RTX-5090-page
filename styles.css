@@ -152,6 +152,7 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
   grid-template-areas:
+    "auth auth"
     "dashboard booking"
     "timeline side"
     "open side";
@@ -161,6 +162,7 @@ button {
 }
 
 .dashboard-panel,
+.auth-panel,
 .booking-panel,
 .timeline-panel,
 .side-panel,
@@ -175,6 +177,11 @@ button {
 
 .dashboard-panel {
   grid-area: dashboard;
+  padding: 18px;
+}
+
+.auth-panel {
+  grid-area: auth;
   padding: 18px;
 }
 
@@ -278,10 +285,64 @@ h2 {
 
 .booking-form,
 .github-form,
-.login-form {
+.auth-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.auth-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) minmax(240px, 0.42fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.auth-tabs {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-tab {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 14px;
+  color: var(--ink);
+  background: #fff;
+  font-weight: 900;
+  text-align: left;
+}
+
+.auth-tab.is-active {
+  color: #fff;
+  border-color: var(--teal);
+  background: var(--teal);
+}
+
+.auth-form.is-hidden {
+  display: none;
+}
+
+.auth-state {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: var(--teal-dark);
+  background: #eef7f1;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.account-summary {
+  display: grid;
+  gap: 12px;
+  min-height: 100%;
+  align-content: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 13px;
+  background: #fbfcfa;
 }
 
 label {
@@ -345,9 +406,13 @@ summary:focus-visible {
 }
 
 .primary-button:disabled,
-.primary-button:disabled:hover {
+.primary-button:disabled:hover,
+.ghost-button:disabled,
+.ghost-button:disabled:hover {
   cursor: not-allowed;
-  background: #8da9a6;
+  color: #78908b;
+  border-color: #d9e2dd;
+  background: #eef3f0;
 }
 
 .ghost-button {
@@ -643,6 +708,7 @@ summary:focus-visible {
   .main-grid {
     grid-template-columns: 1fr;
     grid-template-areas:
+      "auth"
       "dashboard"
       "booking"
       "timeline"
@@ -673,8 +739,21 @@ summary:focus-visible {
   .metric-grid,
   .booking-form,
   .github-form,
-  .login-form {
+  .auth-form,
+  .auth-layout {
     grid-template-columns: 1fr;
+  }
+
+  .auth-heading {
+    align-items: flex-start;
+  }
+
+  .auth-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .auth-tab {
+    text-align: center;
   }
 
   .section-heading {

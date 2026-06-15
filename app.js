@@ -12,6 +12,7 @@ const SETTINGS_KEY = "rtx5090:github-settings";
 const TOKEN_KEY = "rtx5090:github-token";
 const SESSION_TOKEN_KEY = "rtx5090:session-token";
 const LOGIN_KEY = "rtx5090:mail-login";
+const ACCOUNTS_KEY = "rtx5090:accounts";
 const MEMBER_COLORS = ["#127c78", "#c98624", "#416984", "#2f7d55", "#8a5a9e", "#c75945", "#586f9e"];
 
 const DEFAULT_DATA = {
@@ -49,10 +50,18 @@ const els = {
   weekHoursMeta: document.querySelector("#weekHoursMeta"),
   currentMember: document.querySelector("#currentMember"),
   bookingForm: document.querySelector("#bookingForm"),
-  loginForm: document.querySelector("#loginForm"),
-  loginEmail: document.querySelector("#loginEmail"),
-  loginName: document.querySelector("#loginName"),
-  loginStatus: document.querySelector("#loginStatus"),
+  signInTab: document.querySelector("#signInTab"),
+  signUpTab: document.querySelector("#signUpTab"),
+  signInForm: document.querySelector("#signInForm"),
+  signUpForm: document.querySelector("#signUpForm"),
+  signInEmail: document.querySelector("#signInEmail"),
+  signInPassword: document.querySelector("#signInPassword"),
+  signUpName: document.querySelector("#signUpName"),
+  signUpEmail: document.querySelector("#signUpEmail"),
+  signUpPassword: document.querySelector("#signUpPassword"),
+  signUpConfirm: document.querySelector("#signUpConfirm"),
+  accountStatus: document.querySelector("#accountStatus"),
+  authState: document.querySelector("#authState"),
   signOutButton: document.querySelector("#signOutButton"),
   bookingDate: document.querySelector("#bookingDate"),
   startTime: document.querySelector("#startTime"),
@@ -96,40 +105,121 @@ function wireEvents() {
     renderOpenWindows();
   });
   els.syncNowButton.addEventListener("click", () => syncFromGithub());
-  els.loginForm.addEventListener("submit", handleLoginSubmit);
+  els.signInTab.addEventListener("click", () => setAuthMode("signin"));
+  els.signUpTab.addEventListener("click", () => setAuthMode("signup"));
+  els.signInForm.addEventListener("submit", handleSignInSubmit);
+  els.signUpForm.addEventListener("submit", handleSignUpSubmit);
   els.signOutButton.addEventListener("click", handleSignOut);
   els.githubForm.addEventListener("submit", handleGithubSubmit);
   els.clearTokenButton.addEventListener("click", clearGithubToken);
   els.upcomingList.addEventListener("click", handleCancelClick);
 }
 
-function handleLoginSubmit(event) {
+function setAuthMode(mode) {
+  const isSignUp = mode === "signup";
+  els.signInTab.classList.toggle("is-active", !isSignUp);
+  els.signUpTab.classList.toggle("is-active", isSignUp);
+  els.signInTab.setAttribute("aria-selected", String(!isSignUp));
+  els.signUpTab.setAttribute("aria-selected", String(isSignUp));
+  els.signInForm.classList.toggle("is-hidden", isSignUp);
+  els.signUpForm.classList.toggle("is-hidden", !isSignUp);
+}
+
+function handleSignInSubmit(event) {
   event.preventDefault();
 
-  const email = normalizeEmail(els.loginEmail.value);
-  if (!email || !email.includes("@")) {
+  const email = normalizeEmail(els.signInEmail.value);
+  const password = els.signInPassword.value;
+  const account = getAccount(email);
+
+  if (!isValidEmail(email)) {
     showToast("Enter a valid email address.");
     return;
   }
 
-  const name = cleanName(els.loginName.value) || nameFromEmail(email);
-  state.currentUser = {
+  if (!account) {
+    setAuthMode("signup");
+    els.signUpEmail.value = email;
+    showToast("No account found. Create one first.");
+    return;
+  }
+
+  if (account.passwordHash !== passwordHash(email, password)) {
+    showToast("Password does not match.");
+    return;
+  }
+
+  signInAccount(account);
+  els.signInPassword.value = "";
+  showToast(`Signed in as ${account.name}.`);
+}
+
+function handleSignUpSubmit(event) {
+  event.preventDefault();
+
+  const name = cleanName(els.signUpName.value);
+  const email = normalizeEmail(els.signUpEmail.value);
+  const password = els.signUpPassword.value;
+  const confirm = els.signUpConfirm.value;
+
+  if (!name) {
+    showToast("Enter your name.");
+    return;
+  }
+
+  if (!isValidEmail(email)) {
+    showToast("Enter a valid email address.");
+    return;
+  }
+
+  if (password.length < 4) {
+    showToast("Password must be at least 4 characters.");
+    return;
+  }
+
+  if (password !== confirm) {
+    showToast("Passwords do not match.");
+    return;
+  }
+
+  if (getAccount(email)) {
+    setAuthMode("signin");
+    els.signInEmail.value = email;
+    showToast("Account already exists. Sign in instead.");
+    return;
+  }
+
+  const account = {
     email,
     name,
-    memberId: memberIdForEmail(email)
+    memberId: memberIdForEmail(email),
+    passwordHash: passwordHash(email, password),
+    createdAt: new Date().toISOString()
   };
+  const accounts = loadAccounts();
+  accounts.push(account);
+  saveAccounts(accounts);
+  signInAccount(account);
+  els.signUpPassword.value = "";
+  els.signUpConfirm.value = "";
+  showToast(`Account created for ${name}.`);
+}
 
+function signInAccount(account) {
+  state.currentUser = {
+    email: account.email,
+    name: account.name,
+    memberId: account.memberId || memberIdForEmail(account.email)
+  };
   localStorage.setItem(LOGIN_KEY, JSON.stringify(state.currentUser));
   ensureCurrentMember();
   render();
-  showToast(`Signed in as ${name}.`);
 }
 
 function handleSignOut() {
   state.currentUser = null;
   localStorage.removeItem(LOGIN_KEY);
-  els.loginEmail.value = "";
-  els.loginName.value = "";
+  els.signInPassword.value = "";
   render();
   showToast("Signed out.");
 }
@@ -569,13 +659,18 @@ function renderOpenWindows() {
 
 function renderAccount() {
   if (state.currentUser) {
-    els.loginEmail.value = state.currentUser.email;
-    els.loginName.value = state.currentUser.name;
-    els.loginStatus.textContent = `Signed in as ${state.currentUser.name} (${state.currentUser.email}).`;
+    els.signInEmail.value = state.currentUser.email;
+    els.signUpEmail.value = state.currentUser.email;
+    els.signUpName.value = state.currentUser.name;
+    els.accountStatus.textContent = `Signed in as ${state.currentUser.name} (${state.currentUser.email}).`;
+    els.authState.textContent = "Signed in";
+    els.signOutButton.disabled = false;
     return;
   }
 
-  els.loginStatus.textContent = "Sign in with email before booking.";
+  els.accountStatus.textContent = "Sign in before booking.";
+  els.authState.textContent = "Signed out";
+  els.signOutButton.disabled = true;
 }
 
 function renderBookingIdentity() {
@@ -837,6 +932,34 @@ function loadLogin() {
   };
 }
 
+function loadAccounts() {
+  const accounts = readJson(localStorage.getItem(ACCOUNTS_KEY));
+  if (!Array.isArray(accounts)) return [];
+
+  return accounts
+    .filter((account) => account?.email && account?.passwordHash)
+    .map((account) => ({
+      email: normalizeEmail(account.email),
+      name: cleanName(account.name) || nameFromEmail(account.email),
+      memberId: account.memberId || memberIdForEmail(account.email),
+      passwordHash: String(account.passwordHash),
+      createdAt: account.createdAt || new Date().toISOString()
+    }));
+}
+
+function saveAccounts(accounts) {
+  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+}
+
+function getAccount(email) {
+  const normalized = normalizeEmail(email);
+  return loadAccounts().find((account) => account.email === normalized) || null;
+}
+
+function passwordHash(email, password) {
+  return hashString(`${normalizeEmail(email)}:${String(password)}`).toString(36);
+}
+
 function ensureCurrentMember() {
   if (!state.currentUser) return null;
 
@@ -860,6 +983,10 @@ function ensureCurrentMember() {
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 }
 
 function cleanName(value) {

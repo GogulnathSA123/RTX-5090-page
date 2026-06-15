@@ -6,7 +6,7 @@ A GitHub Pages booking dashboard for the shared RTX 5090 system.
 
 - Shows whether the system is free or currently booked.
 - Displays upcoming reservations, daily open windows, and weekly usage balance.
-- Uses email login as the booking identity, so the user list is not limited to three people.
+- Uses local sign-in/sign-up as the booking identity, so the user list is not limited to three people.
 - Prevents overlapping bookings.
 - Stores shared bookings in `data/bookings.json` through the GitHub Contents API.
 - Keeps storage locked to `GogulnathSA123/RTX-5090-page`.
@@ -16,7 +16,7 @@ A GitHub Pages booking dashboard for the shared RTX 5090 system.
 
 1. Enable Pages with GitHub Actions as the source.
 2. Open the deployed site.
-3. Sign in with email under **Mail login**.
+3. Create an account or sign in under **Account access**.
 4. In **GitHub storage**, paste a GitHub token and connect.
 
 The repository, branch, and data path are fixed in the app:
@@ -35,7 +35,7 @@ For writing bookings from the browser, use a fine-grained GitHub token limited t
 
 ## Members
 
-Members are created automatically from email login when they book. There is no fixed member limit.
+Members are created automatically from account sign-up when they book. There is no fixed member limit.
 
 ## Local Preview
 

@@ -35,6 +35,60 @@
       </header>
 
       <main class="main-grid">
+        <section class="auth-panel" aria-labelledby="authTitle">
+          <div class="section-heading auth-heading">
+            <div>
+              <p class="eyebrow">Account access</p>
+              <h2 id="authTitle">Sign in or create an account</h2>
+            </div>
+            <div class="auth-state" id="authState">Signed out</div>
+          </div>
+
+          <div class="auth-layout">
+            <div class="auth-tabs" role="tablist" aria-label="Account mode">
+              <button class="auth-tab is-active" id="signInTab" type="button" aria-selected="true">Sign in</button>
+              <button class="auth-tab" id="signUpTab" type="button" aria-selected="false">Sign up</button>
+            </div>
+
+            <form id="signInForm" class="auth-form">
+              <label>
+                Email
+                <input id="signInEmail" name="email" type="email" autocomplete="email" placeholder="you@university.edu" required>
+              </label>
+              <label>
+                Password
+                <input id="signInPassword" name="password" type="password" autocomplete="current-password" required>
+              </label>
+              <button class="primary-button" type="submit">Sign in</button>
+            </form>
+
+            <form id="signUpForm" class="auth-form is-hidden">
+              <label>
+                Name
+                <input id="signUpName" name="name" type="text" autocomplete="name" maxlength="80" placeholder="Your name" required>
+              </label>
+              <label>
+                Email
+                <input id="signUpEmail" name="email" type="email" autocomplete="email" placeholder="you@university.edu" required>
+              </label>
+              <label>
+                Password
+                <input id="signUpPassword" name="password" type="password" autocomplete="new-password" minlength="4" required>
+              </label>
+              <label>
+                Confirm
+                <input id="signUpConfirm" name="confirm" type="password" autocomplete="new-password" minlength="4" required>
+              </label>
+              <button class="primary-button" type="submit">Create account</button>
+            </form>
+
+            <div class="account-summary">
+              <p id="accountStatus" class="helper-text">Sign in before booking.</p>
+              <button class="ghost-button" id="signOutButton" type="button">Sign out</button>
+            </div>
+          </div>
+        </section>
+
         <section class="dashboard-panel" aria-labelledby="dashboardTitle">
           <div class="section-heading">
             <div>
@@ -133,30 +187,6 @@
         </section>
 
         <section class="side-panel" aria-label="Upcoming bookings and team usage">
-          <div class="panel-block account-panel">
-            <div class="section-heading compact">
-              <div>
-                <p class="eyebrow">Mail login</p>
-                <h2>Booking identity</h2>
-              </div>
-            </div>
-            <form id="loginForm" class="login-form">
-              <label class="full-width">
-                Email
-                <input id="loginEmail" name="email" type="email" autocomplete="email" placeholder="you@university.edu" required>
-              </label>
-              <label class="full-width">
-                Name
-                <input id="loginName" name="name" type="text" autocomplete="name" maxlength="80" placeholder="Your name">
-              </label>
-              <p id="loginStatus" class="helper-text full-width">Sign in with email before booking.</p>
-              <div class="button-row full-width">
-                <button class="primary-button" type="submit">Sign in</button>
-                <button class="ghost-button" id="signOutButton" type="button">Sign out</button>
-              </div>
-            </form>
-          </div>
-
           <div class="panel-block">
             <div class="section-heading compact">
               <div>

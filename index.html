@@ -28,9 +28,9 @@
           <p>Availability, reservations, and usage balance for the shared RTX 5090 system.</p>
         </div>
         <aside class="sync-summary" aria-live="polite">
-          <span class="sync-summary__label">Storage</span>
-          <strong id="syncMode">GitHub read-only</strong>
-          <span id="syncDetail">Locked to GogulnathSA123/RTX-5090-page.</span>
+          <span class="sync-summary__label">Backend</span>
+          <strong id="syncMode">Supabase</strong>
+          <span id="syncDetail">Auth and bookings sync from Supabase.</span>
         </aside>
       </header>
 
@@ -73,11 +73,11 @@
               </label>
               <label>
                 Password
-                <input id="signUpPassword" name="password" type="password" autocomplete="new-password" minlength="4" required>
+                <input id="signUpPassword" name="password" type="password" autocomplete="new-password" minlength="6" required>
               </label>
               <label>
                 Confirm
-                <input id="signUpConfirm" name="confirm" type="password" autocomplete="new-password" minlength="4" required>
+                <input id="signUpConfirm" name="confirm" type="password" autocomplete="new-password" minlength="6" required>
               </label>
               <button class="primary-button" type="submit">Create account</button>
             </form>
@@ -208,26 +208,13 @@
           </div>
 
           <details class="settings-panel">
-            <summary>GitHub storage</summary>
+            <summary>Supabase storage</summary>
             <div class="repository-lock">
-              <span>Locked repository</span>
-              <strong id="lockedRepoName">GogulnathSA123/RTX-5090-page</strong>
-              <small id="lockedRepoMeta">main / data/bookings.json</small>
+              <span>Project</span>
+              <strong id="storageProject">liwamsxkjccrrozqmxfr.supabase.co</strong>
+              <small id="storageMeta">Authenticated users share one bookings table</small>
             </div>
-            <form id="githubForm" class="github-form">
-              <label class="full-width">
-                Token
-                <input id="githubToken" name="token" type="password" autocomplete="off">
-              </label>
-              <label class="checkbox-row full-width">
-                <input id="rememberToken" name="rememberToken" type="checkbox">
-                <span>Remember on this device</span>
-              </label>
-              <div class="button-row full-width">
-                <button class="primary-button" type="submit">Connect</button>
-                <button class="ghost-button" id="clearTokenButton" type="button">Clear</button>
-              </div>
-            </form>
+            <p class="helper-text">No GitHub token is required. Sign in, then book a slot.</p>
           </details>
         </section>
 
@@ -244,6 +231,6 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js" defer></script>
+    <script type="module" src="./app.js"></script>
   </body>
 </html>

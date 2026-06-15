@@ -1,37 +1,29 @@
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
 const DAY_START = 8 * 60;
 const DAY_END = 22 * 60;
 const SLOT_HEIGHT = 30;
-const LOCKED_REPOSITORY = Object.freeze({
-  owner: "GogulnathSA123",
-  repo: "RTX-5090-page",
-  branch: "main",
-  path: "data/bookings.json"
-});
-const LOCAL_DATA_KEY = "rtx5090:data";
-const SETTINGS_KEY = "rtx5090:github-settings";
-const TOKEN_KEY = "rtx5090:github-token";
-const SESSION_TOKEN_KEY = "rtx5090:session-token";
-const LOGIN_KEY = "rtx5090:mail-login";
-const ACCOUNTS_KEY = "rtx5090:accounts";
+const SUPABASE_URL = "https://liwamsxkjccrrozqmxfr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_MZv75VvlJtkt8oYytyCsYA_ZcnHzDy2";
 const MEMBER_COLORS = ["#127c78", "#c98624", "#416984", "#2f7d55", "#8a5a9e", "#c75945", "#586f9e"];
 
-const DEFAULT_DATA = {
-  systemName: "RTX 5090",
-  members: [],
-  bookings: [],
-  updatedAt: new Date().toISOString()
-};
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    persistSession: true
+  }
+});
 
 const state = {
-  data: clone(DEFAULT_DATA),
-  selectedDate: todayISO(),
-  settings: {
-    ...LOCKED_REPOSITORY,
-    rememberToken: false
-  },
   currentUser: null,
-  token: "",
-  remoteSha: "",
+  data: {
+    systemName: "RTX 5090",
+    members: [],
+    bookings: [],
+    updatedAt: new Date().toISOString()
+  },
+  selectedDate: todayISO(),
   isSaving: false
 };
 
@@ -72,29 +64,33 @@ const els = {
   upcomingList: document.querySelector("#upcomingList"),
   usageList: document.querySelector("#usageList"),
   openWindowList: document.querySelector("#openWindowList"),
-  githubForm: document.querySelector("#githubForm"),
-  lockedRepoName: document.querySelector("#lockedRepoName"),
-  lockedRepoMeta: document.querySelector("#lockedRepoMeta"),
-  githubToken: document.querySelector("#githubToken"),
-  rememberToken: document.querySelector("#rememberToken"),
-  clearTokenButton: document.querySelector("#clearTokenButton"),
+  storageProject: document.querySelector("#storageProject"),
+  storageMeta: document.querySelector("#storageMeta"),
   toast: document.querySelector("#toast")
 };
 
 init();
 
 async function init() {
-  loadLogin();
-  loadSettings();
   populateTimeOptions();
   wireEvents();
 
   els.bookingDate.value = todayISO();
   els.timelineDate.value = state.selectedDate;
+  els.storageProject.textContent = new URL(SUPABASE_URL).host;
+  els.storageMeta.textContent = "Authenticated users share one bookings table";
 
-  await loadInitialData();
-  ensureCurrentMember();
+  const { data } = await supabase.auth.getSession();
+  state.currentUser = data.session?.user ? userFromSupabase(data.session.user) : null;
+
+  supabase.auth.onAuthStateChange(async (_event, session) => {
+    state.currentUser = session?.user ? userFromSupabase(session.user) : null;
+    render();
+    await loadBookings({ silent: true });
+  });
+
   render();
+  await loadBookings({ silent: true });
 }
 
 function wireEvents() {
@@ -104,14 +100,12 @@ function wireEvents() {
     renderTimeline();
     renderOpenWindows();
   });
-  els.syncNowButton.addEventListener("click", () => syncFromGithub());
+  els.syncNowButton.addEventListener("click", () => loadBookings());
   els.signInTab.addEventListener("click", () => setAuthMode("signin"));
   els.signUpTab.addEventListener("click", () => setAuthMode("signup"));
   els.signInForm.addEventListener("submit", handleSignInSubmit);
   els.signUpForm.addEventListener("submit", handleSignUpSubmit);
   els.signOutButton.addEventListener("click", handleSignOut);
-  els.githubForm.addEventListener("submit", handleGithubSubmit);
-  els.clearTokenButton.addEventListener("click", clearGithubToken);
   els.upcomingList.addEventListener("click", handleCancelClick);
 }
 
@@ -125,36 +119,31 @@ function setAuthMode(mode) {
   els.signUpForm.classList.toggle("is-hidden", !isSignUp);
 }
 
-function handleSignInSubmit(event) {
+async function handleSignInSubmit(event) {
   event.preventDefault();
 
   const email = normalizeEmail(els.signInEmail.value);
   const password = els.signInPassword.value;
-  const account = getAccount(email);
 
   if (!isValidEmail(email)) {
     showToast("Enter a valid email address.");
     return;
   }
 
-  if (!account) {
-    setAuthMode("signup");
-    els.signUpEmail.value = email;
-    showToast("No account found. Create one first.");
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    showToast(error.message || "Sign in failed.");
     return;
   }
 
-  if (account.passwordHash !== passwordHash(email, password)) {
-    showToast("Password does not match.");
-    return;
-  }
-
-  signInAccount(account);
+  state.currentUser = userFromSupabase(data.user);
   els.signInPassword.value = "";
-  showToast(`Signed in as ${account.name}.`);
+  render();
+  await loadBookings({ silent: true });
+  showToast(`Signed in as ${state.currentUser.name}.`);
 }
 
-function handleSignUpSubmit(event) {
+async function handleSignUpSubmit(event) {
   event.preventDefault();
 
   const name = cleanName(els.signUpName.value);
@@ -172,8 +161,8 @@ function handleSignUpSubmit(event) {
     return;
   }
 
-  if (password.length < 4) {
-    showToast("Password must be at least 4 characters.");
+  if (password.length < 6) {
+    showToast("Password must be at least 6 characters.");
     return;
   }
 
@@ -182,76 +171,47 @@ function handleSignUpSubmit(event) {
     return;
   }
 
-  if (getAccount(email)) {
-    setAuthMode("signin");
-    els.signInEmail.value = email;
-    showToast("Account already exists. Sign in instead.");
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { full_name: name },
+      emailRedirectTo: window.location.href.split("#")[0]
+    }
+  });
+
+  if (error) {
+    showToast(error.message || "Sign up failed.");
     return;
   }
 
-  const account = {
-    email,
-    name,
-    memberId: memberIdForEmail(email),
-    passwordHash: passwordHash(email, password),
-    createdAt: new Date().toISOString()
-  };
-  const accounts = loadAccounts();
-  accounts.push(account);
-  saveAccounts(accounts);
-  signInAccount(account);
   els.signUpPassword.value = "";
   els.signUpConfirm.value = "";
-  showToast(`Account created for ${name}.`);
+
+  if (data.session?.user) {
+    state.currentUser = userFromSupabase(data.session.user);
+    render();
+    await loadBookings({ silent: true });
+    showToast(`Account created for ${name}.`);
+    return;
+  }
+
+  setAuthMode("signin");
+  els.signInEmail.value = email;
+  showToast("Account created. Check your email, then sign in.");
 }
 
-function signInAccount(account) {
-  state.currentUser = {
-    email: account.email,
-    name: account.name,
-    memberId: account.memberId || memberIdForEmail(account.email)
-  };
-  localStorage.setItem(LOGIN_KEY, JSON.stringify(state.currentUser));
-  ensureCurrentMember();
-  render();
-}
+async function handleSignOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    showToast(error.message || "Sign out failed.");
+    return;
+  }
 
-function handleSignOut() {
   state.currentUser = null;
-  localStorage.removeItem(LOGIN_KEY);
   els.signInPassword.value = "";
   render();
   showToast("Signed out.");
-}
-
-async function loadInitialData() {
-  if (hasGithubTarget()) {
-    try {
-      await syncFromGithub({ silent: true });
-      return;
-    } catch (error) {
-      showToast(error.message || "GitHub sync failed.");
-    }
-  }
-
-  const local = readJson(localStorage.getItem(LOCAL_DATA_KEY));
-  if (local) {
-    state.data = normalizeData(local);
-    ensureCurrentMember();
-    updateSyncStatus("GitHub read-only", "Using cached bookings for the locked repo.");
-    return;
-  }
-
-  try {
-    const response = await fetch("./data/bookings.json", { cache: "no-store" });
-    if (!response.ok) throw new Error("Data file unavailable.");
-    state.data = normalizeData(await response.json());
-  } catch {
-    state.data = normalizeData(DEFAULT_DATA);
-  }
-
-  ensureCurrentMember();
-  updateSyncStatus("GitHub read-only", "Locked to GogulnathSA123/RTX-5090-page.");
 }
 
 async function handleBookingSubmit(event) {
@@ -263,8 +223,7 @@ async function handleBookingSubmit(event) {
 
   try {
     state.isSaving = true;
-    await refreshBeforeWrite();
-    ensureCurrentMember();
+    await loadBookings({ silent: true });
 
     const conflict = findConflict(draft);
     if (conflict) {
@@ -272,35 +231,43 @@ async function handleBookingSubmit(event) {
       return;
     }
 
-    state.data.bookings.push(draft);
-    state.data.updatedAt = new Date().toISOString();
-    render();
+    const row = {
+      user_id: draft.memberId,
+      member_name: draft.memberName,
+      member_email: draft.memberEmail,
+      booking_date: draft.date,
+      start_minutes: timeToMinutes(draft.start),
+      end_minutes: timeToMinutes(draft.end),
+      title: draft.title
+    };
+    const { error } = await supabase.from("bookings").insert(row);
 
-    await persistData();
+    if (error) {
+      throw error;
+    }
+
     els.bookingForm.reset();
     els.bookingDate.value = draft.date;
     els.timelineDate.value = draft.date;
     state.selectedDate = draft.date;
-    render();
+    await loadBookings({ silent: true });
     showToast("Booking saved.");
   } catch (error) {
-    state.data.bookings = state.data.bookings.filter((booking) => booking.id !== draft.id);
-    render();
-    showToast(error.message || "Booking could not be saved.");
+    showToast(supabaseBookingError(error, "Booking could not be saved."));
   } finally {
     state.isSaving = false;
   }
 }
 
 function buildDraftBooking() {
-  const member = ensureCurrentMember();
+  const member = state.currentUser;
   const date = els.bookingDate.value;
   const start = els.startTime.value;
   const duration = Number(els.duration.value);
   const title = els.bookingTitleInput.value.trim();
 
   if (!member) {
-    showToast("Sign in with email before booking.");
+    showToast("Sign in before booking.");
     return null;
   }
 
@@ -318,7 +285,6 @@ function buildDraftBooking() {
   }
 
   return {
-    id: `booking-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     memberId: member.id,
     memberName: member.name,
     memberEmail: member.email,
@@ -334,167 +300,92 @@ async function handleCancelClick(event) {
   const button = event.target.closest("[data-cancel-id]");
   if (!button || state.isSaving) return;
 
-  const id = button.dataset.cancelId;
-  const previous = clone(state.data.bookings);
-
   try {
     state.isSaving = true;
-    await refreshBeforeWrite();
-    state.data.bookings = state.data.bookings.filter((booking) => booking.id !== id);
-    state.data.updatedAt = new Date().toISOString();
-    render();
-    await persistData();
+    const { error } = await supabase.from("bookings").delete().eq("id", button.dataset.cancelId);
+    if (error) throw error;
+    await loadBookings({ silent: true });
     showToast("Booking cancelled.");
   } catch (error) {
-    state.data.bookings = previous;
-    render();
-    showToast(error.message || "Booking could not be cancelled.");
+    showToast(supabaseBookingError(error, "Booking could not be cancelled."));
   } finally {
     state.isSaving = false;
   }
 }
 
-async function handleGithubSubmit(event) {
-  event.preventDefault();
-
-  state.settings = {
-    ...LOCKED_REPOSITORY,
-    rememberToken: els.rememberToken.checked
-  };
-  state.token = els.githubToken.value.trim();
-  saveSettings();
-
-  try {
-    await syncFromGithub();
-    showToast("GitHub connected.");
-  } catch (error) {
-    showToast(error.message || "GitHub connection failed.");
-  }
-}
-
-async function syncFromGithub(options = {}) {
-  if (!hasGithubTarget()) {
-    updateSyncStatus("GitHub unavailable", "Repository target is locked but unavailable.");
-    if (!options.silent) showToast("Locked repository target is unavailable.");
+async function loadBookings(options = {}) {
+  if (!state.currentUser) {
+    state.data = normalizeRows([]);
+    updateSyncStatus("Supabase", "Sign in to view and create bookings.");
+    render();
     return;
   }
 
-  updateSyncStatus("Syncing", `${state.settings.owner}/${state.settings.repo}`);
-  const remote = await fetchGithubData();
-  state.data = normalizeData(remote.data);
-  state.remoteSha = remote.sha;
-  ensureCurrentMember();
-  localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(state.data));
-  updateSyncStatus(state.token ? "GitHub connected" : "GitHub read-only", `${state.settings.owner}/${state.settings.repo}:${state.settings.branch}`);
-  render();
+  try {
+    updateSyncStatus("Syncing", "Loading bookings from Supabase.");
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("id,user_id,member_name,member_email,booking_date,start_minutes,end_minutes,title,created_at")
+      .order("booking_date", { ascending: true })
+      .order("start_minutes", { ascending: true });
 
-  if (!options.silent) showToast("Bookings synced.");
-}
-
-async function refreshBeforeWrite() {
-  if (hasGithubTarget()) {
-    await syncFromGithub({ silent: true });
-  }
-}
-
-async function persistData() {
-  state.data = normalizeData(state.data);
-  ensureCurrentMember();
-  state.data.updatedAt = new Date().toISOString();
-
-  if (hasGithubTarget()) {
-    if (!state.token) {
-      throw new Error("A GitHub token is required to save shared bookings.");
+    if (error) {
+      throw error;
     }
 
-    await saveGithubData();
-    localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(state.data));
-    updateSyncStatus("GitHub connected", `${state.settings.owner}/${state.settings.repo}:${state.settings.branch}`);
-    return;
-  }
-
-  localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(state.data));
-  updateSyncStatus("GitHub read-only", "Stored locally because GitHub is unavailable.");
-}
-
-async function fetchGithubData() {
-  const url = githubContentUrl();
-  const response = await fetch(url, {
-    headers: githubHeaders()
-  });
-
-  if (!response.ok) {
-    throw new Error(await githubError(response, "Could not load GitHub data."));
-  }
-
-  const payload = await response.json();
-  const content = decodeBase64(payload.content || "");
-  return {
-    data: JSON.parse(content),
-    sha: payload.sha
-  };
-}
-
-async function saveGithubData() {
-  const latest = await fetchGithubData();
-  if (state.remoteSha && latest.sha !== state.remoteSha) {
-    state.data = normalizeData(latest.data);
-    state.remoteSha = latest.sha;
-    localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(state.data));
+    state.data = normalizeRows(data || []);
+    updateSyncStatus("Supabase", state.currentUser ? "Signed in and synced." : "Sign in to create bookings.");
     render();
-    throw new Error("Schedule changed on GitHub. Sync and try again.");
+    if (!options.silent) showToast("Bookings synced.");
+  } catch (error) {
+    updateSyncStatus("Setup needed", "Run supabase/schema.sql in your Supabase SQL editor.");
+    render();
+    if (!options.silent) {
+      showToast(supabaseBookingError(error, "Could not load bookings."));
+    }
   }
-
-  state.remoteSha = latest.sha;
-
-  const response = await fetch(githubContentUrl(), {
-    method: "PUT",
-    headers: githubHeaders(),
-    body: JSON.stringify({
-      message: `chore: update lab PC bookings ${new Date().toISOString()}`,
-      content: encodeBase64(JSON.stringify(state.data, null, 2) + "\n"),
-      branch: state.settings.branch,
-      sha: state.remoteSha
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(await githubError(response, "Could not save GitHub data."));
-  }
-
-  const payload = await response.json();
-  state.remoteSha = payload.content?.sha || "";
 }
 
-function githubContentUrl() {
-  const owner = encodeURIComponent(state.settings.owner);
-  const repo = encodeURIComponent(state.settings.repo);
-  const path = state.settings.path.split("/").map(encodeURIComponent).join("/");
-  const ref = encodeURIComponent(state.settings.branch || "main");
-  return `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${ref}`;
-}
+function normalizeRows(rows) {
+  const bookings = rows.map((row) => ({
+    id: row.id,
+    memberId: row.user_id,
+    memberName: row.member_name || "Unknown member",
+    memberEmail: row.member_email || "",
+    date: row.booking_date,
+    start: minutesToTime(row.start_minutes),
+    end: minutesToTime(row.end_minutes),
+    title: row.title || "Lab work",
+    createdAt: row.created_at
+  }));
+  const members = [];
 
-function githubHeaders() {
-  const headers = {
-    Accept: "application/vnd.github+json",
-    "Content-Type": "application/json"
+  for (const booking of bookings) {
+    if (!members.some((member) => member.id === booking.memberId)) {
+      members.push({
+        id: booking.memberId,
+        name: booking.memberName,
+        email: booking.memberEmail,
+        color: colorForIndex(members.length)
+      });
+    }
+  }
+
+  if (state.currentUser && !members.some((member) => member.id === state.currentUser.id)) {
+    members.push({
+      id: state.currentUser.id,
+      name: state.currentUser.name,
+      email: state.currentUser.email,
+      color: colorForEmail(state.currentUser.email)
+    });
+  }
+
+  return {
+    systemName: "RTX 5090",
+    members,
+    bookings,
+    updatedAt: new Date().toISOString()
   };
-
-  if (state.token) {
-    headers.Authorization = `Bearer ${state.token}`;
-    headers["X-GitHub-Api-Version"] = "2022-11-28";
-  }
-
-  return headers;
-}
-
-async function githubError(response, fallback) {
-  try {
-    const payload = await response.json();
-    return payload.message ? `${fallback} ${payload.message}` : fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 function render() {
@@ -505,7 +396,35 @@ function render() {
   renderUpcoming();
   renderUsage();
   renderOpenWindows();
-  renderGithubForm();
+}
+
+function renderAccount() {
+  if (state.currentUser) {
+    els.signInEmail.value = state.currentUser.email;
+    els.signUpEmail.value = state.currentUser.email;
+    els.signUpName.value = state.currentUser.name;
+    els.accountStatus.textContent = `Signed in as ${state.currentUser.name} (${state.currentUser.email}).`;
+    els.authState.textContent = "Signed in";
+    els.signOutButton.disabled = false;
+    return;
+  }
+
+  els.accountStatus.textContent = "Sign in before booking.";
+  els.authState.textContent = "Signed out";
+  els.signOutButton.disabled = true;
+}
+
+function renderBookingIdentity() {
+  const submitButton = els.bookingForm.querySelector('button[type="submit"]');
+
+  if (state.currentUser) {
+    els.currentMember.value = `${state.currentUser.name} (${state.currentUser.email})`;
+    submitButton.disabled = false;
+    return;
+  }
+
+  els.currentMember.value = "Sign in required";
+  submitButton.disabled = true;
 }
 
 function renderDashboard() {
@@ -597,13 +516,14 @@ function renderUpcoming() {
   els.upcomingList.innerHTML = upcoming
     .map((booking) => {
       const member = memberById(booking.memberId);
+      const canCancel = state.currentUser?.id === booking.memberId;
       return `
         <article class="booking-item" style="border-left: 5px solid ${escapeAttr(member.color)}">
           <div>
             <strong>${escapeHtml(member.name)} - ${escapeHtml(booking.title)}</strong>
             <span>${formatDate(booking.date)} - ${escapeHtml(booking.start)}-${escapeHtml(booking.end)}</span>
           </div>
-          <button class="cancel-button" type="button" data-cancel-id="${escapeAttr(booking.id)}" aria-label="Cancel booking">x</button>
+          ${canCancel ? `<button class="cancel-button" type="button" data-cancel-id="${escapeAttr(booking.id)}" aria-label="Cancel booking">x</button>` : ""}
         </article>
       `;
     })
@@ -657,45 +577,6 @@ function renderOpenWindows() {
     .join("");
 }
 
-function renderAccount() {
-  if (state.currentUser) {
-    els.signInEmail.value = state.currentUser.email;
-    els.signUpEmail.value = state.currentUser.email;
-    els.signUpName.value = state.currentUser.name;
-    els.accountStatus.textContent = `Signed in as ${state.currentUser.name} (${state.currentUser.email}).`;
-    els.authState.textContent = "Signed in";
-    els.signOutButton.disabled = false;
-    return;
-  }
-
-  els.accountStatus.textContent = "Sign in before booking.";
-  els.authState.textContent = "Signed out";
-  els.signOutButton.disabled = true;
-}
-
-function renderBookingIdentity() {
-  const member = ensureCurrentMember();
-  const submitButton = els.bookingForm.querySelector('button[type="submit"]');
-
-  if (member) {
-    els.currentMember.value = `${member.name} (${member.email})`;
-    submitButton.disabled = false;
-    return;
-  }
-
-  els.currentMember.value = "Sign in with email";
-  submitButton.disabled = true;
-}
-
-function renderGithubForm() {
-  els.lockedRepoName.textContent = `${LOCKED_REPOSITORY.owner}/${LOCKED_REPOSITORY.repo}`;
-  els.lockedRepoMeta.textContent = `${LOCKED_REPOSITORY.branch} / ${LOCKED_REPOSITORY.path}`;
-  els.rememberToken.checked = state.settings.rememberToken;
-  if (!els.githubToken.value && state.token) {
-    els.githubToken.value = state.token;
-  }
-}
-
 function populateTimeOptions() {
   const options = [];
   for (let minutes = DAY_START; minutes < DAY_END; minutes += 30) {
@@ -715,14 +596,14 @@ function showToast(message) {
   clearTimeout(showToast.timer);
   showToast.timer = setTimeout(() => {
     els.toast.classList.remove("is-visible");
-  }, 3400);
+  }, 4200);
 }
 
 function findConflict(draft) {
   const draftStart = timeToMinutes(draft.start);
   const draftEnd = timeToMinutes(draft.end);
   return activeBookings().find((booking) => {
-    if (booking.id === draft.id || booking.date !== draft.date) return false;
+    if (booking.date !== draft.date) return false;
     return intervalsOverlap(
       draftStart,
       draftEnd,
@@ -822,6 +703,15 @@ function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
   return aStart < bEnd && bStart < aEnd;
 }
 
+function userFromSupabase(user) {
+  const email = normalizeEmail(user.email);
+  return {
+    id: user.id,
+    email,
+    name: cleanName(user.user_metadata?.full_name) || cleanName(user.user_metadata?.name) || nameFromEmail(email)
+  };
+}
+
 function memberById(id) {
   return state.data.members.find((member) => member.id === id) || {
     id,
@@ -835,150 +725,18 @@ function memberName(id) {
   return memberById(id).name;
 }
 
-function normalizeData(raw) {
-  const data = {
-    ...clone(DEFAULT_DATA),
-    ...(raw && typeof raw === "object" ? raw : {})
-  };
-
-  data.members = Array.isArray(data.members)
-    ? data.members.map((member, index) => ({
-        id: String(member.id || `member-${index + 1}`),
-        name: String(member.name || `Member ${index + 1}`),
-        email: member.email ? normalizeEmail(member.email) : "",
-        color: member.color || colorForIndex(index)
-      }))
-    : [];
-
-  data.bookings = Array.isArray(data.bookings)
-    ? data.bookings
-        .filter((booking) => booking && booking.id && booking.memberId && booking.date && booking.start && booking.end)
-        .map((booking) => ({
-          id: String(booking.id),
-          memberId: String(booking.memberId),
-          date: String(booking.date),
-          start: String(booking.start),
-          end: String(booking.end),
-          title: String(booking.title || "Lab work"),
-          memberName: booking.memberName ? String(booking.memberName) : "",
-          memberEmail: booking.memberEmail ? normalizeEmail(booking.memberEmail) : "",
-          createdAt: String(booking.createdAt || data.updatedAt || new Date().toISOString()),
-          status: booking.status ? String(booking.status) : undefined
-        }))
-    : [];
-
-  for (const booking of data.bookings) {
-    if (!data.members.some((member) => member.id === booking.memberId)) {
-      data.members.push({
-        id: booking.memberId,
-        name: booking.memberName || "Unknown member",
-        email: booking.memberEmail || "",
-        color: colorForIndex(data.members.length)
-      });
-    }
+function supabaseBookingError(error, fallback) {
+  const message = error?.message || fallback;
+  if (error?.code === "42P01") {
+    return `${fallback} Run supabase/schema.sql in Supabase first.`;
   }
-
-  data.updatedAt = data.updatedAt || new Date().toISOString();
-  return data;
-}
-
-function loadSettings() {
-  const saved = readJson(localStorage.getItem(SETTINGS_KEY));
-  state.settings = {
-    ...LOCKED_REPOSITORY,
-    rememberToken: Boolean(saved?.rememberToken)
-  };
-
-  state.token =
-    (state.settings.rememberToken ? localStorage.getItem(TOKEN_KEY) : sessionStorage.getItem(SESSION_TOKEN_KEY)) ||
-    "";
-}
-
-function saveSettings() {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify({ rememberToken: state.settings.rememberToken }));
-  localStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(SESSION_TOKEN_KEY);
-
-  if (state.token) {
-    const storage = state.settings.rememberToken ? localStorage : sessionStorage;
-    storage.setItem(state.settings.rememberToken ? TOKEN_KEY : SESSION_TOKEN_KEY, state.token);
+  if (error?.code === "23P01") {
+    return "Conflict: that time overlaps an existing booking.";
   }
-}
-
-function clearGithubToken() {
-  state.token = "";
-  els.githubToken.value = "";
-  localStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(SESSION_TOKEN_KEY);
-  updateSyncStatus("GitHub read-only", "Token cleared. Bookings still load from the locked repo.");
-  showToast("Token cleared from this browser.");
-}
-
-function hasGithubTarget() {
-  return true;
-}
-
-function loadLogin() {
-  const saved = readJson(localStorage.getItem(LOGIN_KEY));
-  if (!saved?.email) return;
-
-  const email = normalizeEmail(saved.email);
-  if (!email) return;
-
-  state.currentUser = {
-    email,
-    name: cleanName(saved.name) || nameFromEmail(email),
-    memberId: saved.memberId || memberIdForEmail(email)
-  };
-}
-
-function loadAccounts() {
-  const accounts = readJson(localStorage.getItem(ACCOUNTS_KEY));
-  if (!Array.isArray(accounts)) return [];
-
-  return accounts
-    .filter((account) => account?.email && account?.passwordHash)
-    .map((account) => ({
-      email: normalizeEmail(account.email),
-      name: cleanName(account.name) || nameFromEmail(account.email),
-      memberId: account.memberId || memberIdForEmail(account.email),
-      passwordHash: String(account.passwordHash),
-      createdAt: account.createdAt || new Date().toISOString()
-    }));
-}
-
-function saveAccounts(accounts) {
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-}
-
-function getAccount(email) {
-  const normalized = normalizeEmail(email);
-  return loadAccounts().find((account) => account.email === normalized) || null;
-}
-
-function passwordHash(email, password) {
-  return hashString(`${normalizeEmail(email)}:${String(password)}`).toString(36);
-}
-
-function ensureCurrentMember() {
-  if (!state.currentUser) return null;
-
-  const existing = state.data.members.find((member) => member.id === state.currentUser.memberId);
-  if (existing) {
-    existing.name = state.currentUser.name;
-    existing.email = state.currentUser.email;
-    existing.color = existing.color || colorForEmail(state.currentUser.email);
-    return existing;
+  if (message.includes("row-level security")) {
+    return `${fallback} Check the Supabase RLS policies in supabase/schema.sql.`;
   }
-
-  const member = {
-    id: state.currentUser.memberId,
-    name: state.currentUser.name,
-    email: state.currentUser.email,
-    color: colorForEmail(state.currentUser.email)
-  };
-  state.data.members.push(member);
-  return member;
+  return message;
 }
 
 function normalizeEmail(value) {
@@ -1002,10 +760,6 @@ function nameFromEmail(email) {
     .join(" ") || "Member";
 }
 
-function memberIdForEmail(email) {
-  return `mail-${hashString(normalizeEmail(email)).toString(36)}`;
-}
-
 function colorForEmail(email) {
   return MEMBER_COLORS[Math.abs(hashString(email)) % MEMBER_COLORS.length];
 }
@@ -1020,38 +774,6 @@ function hashString(value) {
     hash = ((hash << 5) + hash) ^ char.charCodeAt(0);
   }
   return hash >>> 0;
-}
-
-function normalizePath(path) {
-  return path.replace(/^\/+/, "").replace(/\\/g, "/");
-}
-
-function clone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function readJson(value) {
-  if (!value) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
-function encodeBase64(value) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary);
-}
-
-function decodeBase64(value) {
-  const binary = atob(value.replace(/\n/g, ""));
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
 }
 
 function timeToMinutes(value) {

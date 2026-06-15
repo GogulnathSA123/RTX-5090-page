@@ -5,41 +5,34 @@ A GitHub Pages booking dashboard for the shared RTX 5090 system.
 ## What It Does
 
 - Shows whether the system is free or currently booked.
-- Displays upcoming reservations, daily open windows, and weekly usage balance.
-- Uses local sign-in/sign-up as the booking identity, so the user list is not limited to three people.
-- Prevents overlapping bookings.
-- Stores shared bookings in `data/bookings.json` through the GitHub Contents API.
-- Keeps storage locked to `GogulnathSA123/RTX-5090-page`.
-- Runs as a static site on GitHub Pages, with no separate backend server.
+- Uses Supabase email/password signup and signin.
+- Stores shared bookings in Supabase instead of GitHub commits.
+- Prevents overlapping bookings in the UI and with a database constraint.
+- Runs as a static site on GitHub Pages, with no GitHub token field.
 
-## GitHub Setup
+## Supabase Setup
 
-1. Enable Pages with GitHub Actions as the source.
-2. Open the deployed site.
-3. Create an account or sign in under **Account access**.
-4. In **GitHub storage**, paste a GitHub token and connect.
-
-The repository, branch, and data path are fixed in the app:
+1. Open the Supabase project:
 
 ```text
-GogulnathSA123/RTX-5090-page
-main / data/bookings.json
+https://liwamsxkjccrrozqmxfr.supabase.co
 ```
 
-If the first Pages deploy fails with `Get Pages site failed`, the repository does not have Pages enabled yet. You can fix it either way:
+2. Go to **SQL Editor**.
+3. Paste and run [supabase/schema.sql](supabase/schema.sql).
+4. Go to **Authentication -> URL Configuration** and add the GitHub Pages URL as an allowed redirect URL:
 
-- Go to **Settings -> Pages** and set the source to **GitHub Actions**.
-- Or add a repository secret named `PAGES_TOKEN` with Pages write permission, then rerun the workflow. The workflow will use that token to enable Pages automatically.
+```text
+https://gogulnathsa123.github.io/RTX-5090-page/
+```
 
-For writing bookings from the browser, use a fine-grained GitHub token limited to this repository with **Contents: Read and write** permission. The token is never committed to the repo; it is stored only in the browser, either for the session or on that device if selected.
+5. Make sure **Authentication -> Providers -> Email** is enabled.
 
-## Members
-
-Members are created automatically from account sign-up when they book. There is no fixed member limit.
+The site uses the Supabase project URL plus the frontend-safe publishable key. The old GitHub token field is no longer used.
 
 ## Local Preview
 
-Serve the folder with any static server and open the local URL. Example:
+Serve the folder with any static server and open the local URL:
 
 ```powershell
 python -m http.server 8080
